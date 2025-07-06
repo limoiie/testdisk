@@ -1,5 +1,7 @@
 # Generated files
 *.o
+*.a
+*.so
 *.in
 *.8
 config/
@@ -31,3 +33,7 @@ Makefile
 # OS specific files
 *~
 .DS_Store
+
+# IDE files
+.idea/
+.vscode/

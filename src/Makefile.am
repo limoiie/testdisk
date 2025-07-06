@@ -36,6 +36,12 @@ endif
 bin_PROGRAMS		= testdisk photorec fidentify $(QPHOTOREC)
 EXTRA_PROGRAMS		= photorecf fuzzerfidentify
 
+# Library targets for PhotoRec API (manual targets)
+# Note: Using manual targets instead of automake lib_LIBRARIES to avoid configure.ac dependencies
+
+# Ensure AR is defined for library creation
+AR		?= ar
+
 smallbase_C		= common.c crc.c ext2_common.c fat_common.c log.c misc.c setdate.c
 smallbase_H		= common.h crc.h ext2_common.h fat_common.h log.h misc.h setdate.h
 base_C			= $(smallbase_C) apfs_common.c autoset.c ewf.c fnctdsk.c hdaccess.c hdcache.c hdwin32.c hidden.c hpa_dco.c intrf.c iso.c list_sort.c log_part.c msdos.c parti386.c partgpt.c parthumax.c partmac.c partsun.c partnone.c partxbox.c ntfs_io.c ntfs_utl.c partauto.c sudo.c unicode.c win32.c
@@ -427,6 +433,13 @@ QT_TS = \
   lang/qphotorec.zh_CN.ts \
   lang/qphotorec.zh_TW.ts
 
+# Library source definitions (excluding UI components and main functions)
+libphotorec_core_C	= photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c fat_cluster.c fat_unformat.c
+
+libphotorec_core_H	= phcfg.h addpart.h chgarch.h chgtype.h dfxml.h dir_common.h dir.h exfatp.h ext2grp.h ext2p.h ext2_dir.h ext2_inc.h fat_dir.h fatp.h file_found.h geometry.h memmem.h ntfs_dir.h ntfsp.h ntfs_inc.h photorec_check_header.h psearch.h sessionp.h fat_cluster.h fat_unformat.h
+
+libphotorec_C_SOURCES	= $(libphotorec_core_C) $(file_C) $(base_C) $(fs_C) suspend_no.c
+
 photorec_C_SOURCES	= $(photorec_C) $(file_C) $(base_C) $(fs_C) $(photorec_ncurses_C) suspend_no.c
 photorec_H_SOURCES	= $(photorec_H) $(file_H) $(base_H) $(fs_H) $(photorec_ncurses_H) $(ICON_PHOTOREC)
 photorec_SOURCES	= $(photorec_C_SOURCES) $(photorec_H_SOURCES)
@@ -449,17 +462,45 @@ fuzzerfidentify_C_SOURCES	= $(file_C) $(smallbase_C) suspend_no.c fuzzerfidentif
 fuzzerfidentify_H_SOURCES	= $(fidentify_H_SOURCES)
 fuzzerfidentify_SOURCES		= $(fuzzerfidentify_C_SOURCES) $(fuzzerfidentify_H_SOURCES)
 
+# Object files for library (computed from source files)
+libphotorec_OBJECTS		= $(libphotorec_C_SOURCES:.c=.o)
+
+# Additional distribution files
+EXTRA_DIST			= photorec_api.h
 
 QT_QM=$(QT_TS:.ts=.qm)
 SECONDARY: $(QT_QM)
 
-CLEANFILES = $(nodist_qphotorec_SOURCES)
-DISTCLEANFILES = *~ core
+CLEANFILES = $(nodist_qphotorec_SOURCES) libphotorec.a libphotorec_static.a
+DISTCLEANFILES = *~ core *.a
 
 small: $(sbin_PROGRAMS) $(bin_PROGRAMS)
 	$(STRIP) -s $(sbin_PROGRAMS) $(bin_PROGRAMS)
 
 extras: $(EXTRA_PROGRAMS)
+
+# Manual library targets using ar
+libphotorec.a: $(libphotorec_OBJECTS)
+	$(AR) rcs $@ $(libphotorec_OBJECTS)
+
+# Special compilation rule for library objects (if needed)
+# Library object files inherit the normal compilation rules but can be extended here
+
+libphotorec_static.a: $(libphotorec_OBJECTS)
+	$(AR) rcs $@ $(libphotorec_OBJECTS)
+
+# Library-specific targets
+library: libphotorec.a libphotorec_static.a
+
+library-static: libphotorec_static.a
+
+library-shared: libphotorec.a
+
+library-install: library photorec_api.h
+	$(mkinstalldirs) $(DESTDIR)$(libdir)
+	$(mkinstalldirs) $(DESTDIR)$(includedir)
+	$(INSTALL_DATA) libphotorec.a $(DESTDIR)$(libdir)/libphotorec.a
+	$(INSTALL_DATA) photorec_api.h $(DESTDIR)$(includedir)/photorec_api.h
 
 frama-c-%: session_%.framac
 	frama-c-gui -load $^

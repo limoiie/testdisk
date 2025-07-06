@@ -68,6 +68,19 @@ extras:
 extrasstatic:
 	$(MAKE) LDFLAGS="$(LDFLAGS) -static" LIBS="$(PTHREAD_LIBS) $(LIBS)" CFLAGS="$(PTHREAD_CFLAGS) $(CFLAGS)" CXXFLAGS="$(PTHREAD_CFLAGS) $(CXXFLAGS)" extras
 
+# Library build targets
+library:
+	(cd src && $(MAKE) library) || exit 1;
+
+library-static:
+	(cd src && $(MAKE) library-static) || exit 1;
+
+library-shared:
+	(cd src && $(MAKE) library-shared) || exit 1;
+
+library-install: library
+	(cd src && $(MAKE) library-install) || exit 1;
+
 session_%.framac:
 	(cd src && $(MAKE) $@) || exit 1;
 
