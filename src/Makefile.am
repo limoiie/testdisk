@@ -36,8 +36,8 @@ endif
 bin_PROGRAMS		= testdisk photorec fidentify $(QPHOTOREC)
 EXTRA_PROGRAMS		= photorecf fuzzerfidentify
 
-# Library targets for PhotoRec API (manual targets)
-# Note: Using manual targets instead of automake lib_LIBRARIES to avoid configure.ac dependencies
+# Library targets for PhotoRec API
+# Supporting both static (.a) and shared (.so) libraries
 
 # Ensure AR is defined for library creation
 AR		?= ar
@@ -434,7 +434,7 @@ QT_TS = \
   lang/qphotorec.zh_TW.ts
 
 # Library source definitions (excluding UI components and main functions)
-libphotorec_core_C	= photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c fat_cluster.c fat_unformat.c
+libphotorec_core_C	= photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c
 
 libphotorec_core_H	= phcfg.h addpart.h chgarch.h chgtype.h dfxml.h dir_common.h dir.h exfatp.h ext2grp.h ext2p.h ext2_dir.h ext2_inc.h fat_dir.h fatp.h file_found.h geometry.h memmem.h ntfs_dir.h ntfsp.h ntfs_inc.h photorec_check_header.h psearch.h sessionp.h fat_cluster.h fat_unformat.h
 
@@ -462,44 +462,74 @@ fuzzerfidentify_C_SOURCES	= $(file_C) $(smallbase_C) suspend_no.c fuzzerfidentif
 fuzzerfidentify_H_SOURCES	= $(fidentify_H_SOURCES)
 fuzzerfidentify_SOURCES		= $(fuzzerfidentify_C_SOURCES) $(fuzzerfidentify_H_SOURCES)
 
-# Object files for library (computed from source files)
+# Object files for library targets  
 libphotorec_OBJECTS		= $(libphotorec_C_SOURCES:.c=.o)
+libphotorec_shared_OBJECTS	= $(libphotorec_C_SOURCES:.c=.shared.o)
 
-# Additional distribution files
+# Shared library specific CFLAGS for position-independent code
+SHARED_CFLAGS			= $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) -fPIC -DLIBPHOTOREC_SHARED
+
+# Headers to install
+include_HEADERS			= photorec_api.h
+
+# Additional distribution files  
 EXTRA_DIST			= photorec_api.h
 
 QT_QM=$(QT_TS:.ts=.qm)
 SECONDARY: $(QT_QM)
 
-CLEANFILES = $(nodist_qphotorec_SOURCES) libphotorec.a libphotorec_static.a
-DISTCLEANFILES = *~ core *.a
+CLEANFILES = $(nodist_qphotorec_SOURCES) libphotorec.so libphotorec.so.* *.dylib libphotorec_static.a *.shared.o
+DISTCLEANFILES = *~ core *.a *.so *.so.* *.dylib
 
 small: $(sbin_PROGRAMS) $(bin_PROGRAMS)
 	$(STRIP) -s $(sbin_PROGRAMS) $(bin_PROGRAMS)
 
 extras: $(EXTRA_PROGRAMS)
 
-# Manual library targets using ar
-libphotorec.a: $(libphotorec_OBJECTS)
-	$(AR) rcs $@ $(libphotorec_OBJECTS)
+# Shared library object compilation rule
+%.shared.o: %.c
+	$(CC) $(SHARED_CFLAGS) -c $< -o $@
 
-# Special compilation rule for library objects (if needed)
-# Library object files inherit the normal compilation rules but can be extended here
-
+# Static library target
 libphotorec_static.a: $(libphotorec_OBJECTS)
 	$(AR) rcs $@ $(libphotorec_OBJECTS)
 
-# Library-specific targets
-library: libphotorec.a libphotorec_static.a
+# Shared library target (macOS compatible)
+libphotorec.so: $(libphotorec_shared_OBJECTS)
+	if [ "`uname`" = "Darwin" ]; then \
+		$(CC) -dynamiclib -Wl,-install_name,libphotorec.1.dylib -o libphotorec.1.0.0.dylib $(libphotorec_shared_OBJECTS) -lncurses -lz; \
+		ln -sf libphotorec.1.0.0.dylib libphotorec.1.dylib; \
+		ln -sf libphotorec.1.0.0.dylib libphotorec.dylib; \
+		ln -sf libphotorec.1.0.0.dylib libphotorec.so.1.0.0; \
+		ln -sf libphotorec.1.0.0.dylib libphotorec.so.1; \
+		ln -sf libphotorec.1.0.0.dylib libphotorec.so; \
+	else \
+		$(CC) -shared -Wl,-soname,libphotorec.so.1 -o libphotorec.so.1.0.0 $(libphotorec_shared_OBJECTS) -lncurses -lz; \
+		ln -sf libphotorec.so.1.0.0 libphotorec.so.1; \
+		ln -sf libphotorec.so.1.0.0 libphotorec.so; \
+	fi
+
+# Main library targets
+library: libphotorec.so libphotorec_static.a
 
 library-static: libphotorec_static.a
 
-library-shared: libphotorec.a
+library-shared: libphotorec.so
 
+# Install both shared and static libraries with headers
 library-install: library photorec_api.h
 	$(mkinstalldirs) $(DESTDIR)$(libdir)
 	$(mkinstalldirs) $(DESTDIR)$(includedir)
-	$(INSTALL_DATA) libphotorec.a $(DESTDIR)$(libdir)/libphotorec.a
+	$(INSTALL_DATA) libphotorec_static.a $(DESTDIR)$(libdir)/libphotorec.a
+	if [ "`uname`" = "Darwin" ]; then \
+		$(INSTALL_PROGRAM) libphotorec.1.0.0.dylib $(DESTDIR)$(libdir)/libphotorec.1.0.0.dylib; \
+		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.1.0.0.dylib libphotorec.1.dylib; \
+		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.1.0.0.dylib libphotorec.dylib; \
+	else \
+		$(INSTALL_PROGRAM) libphotorec.so.1.0.0 $(DESTDIR)$(libdir)/libphotorec.so.1.0.0; \
+		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.so.1.0.0 libphotorec.so.1; \
+		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.so.1.0.0 libphotorec.so; \
+	fi
 	$(INSTALL_DATA) photorec_api.h $(DESTDIR)$(includedir)/photorec_api.h
 
 frama-c-%: session_%.framac
