@@ -1,7 +1,7 @@
 /*
- * PhotoRec API - Comprehensive File Recovery Library Interface
+ * PhotoRec API - Context-Based File Recovery Library Interface
  * 
- * This header provides a complete API for implementing custom interfaces
+ * This header provides a context-based API for implementing custom interfaces
  * to PhotoRec's file recovery functionality while preserving all core
  * recovery capabilities.
  * 
@@ -37,6 +37,12 @@ extern "C" {
 /* Access mode flags */
 #define TESTDISK_O_RDONLY          0x00000001
 #define TESTDISK_O_READAHEAD_32K   0x00000010
+#define TESTDISK_O_ALL             0x00000020
+#define TESTDISK_O_DIRECT          0x00000040
+
+/* Disk unit types */
+#define UNIT_SECTOR                1
+#define UNIT_CHS                   2
 
 /* ============================================================================
  * ENUMS AND STATUS TYPES
@@ -91,7 +97,7 @@ typedef enum
 } data_check_t;
 
 /* ============================================================================
- * FORWARD DECLARATIONS
+ * FORWARD DECLARATIONS AND BASIC TYPES
  * ============================================================================ */
 
 /**
@@ -103,103 +109,124 @@ struct td_list_head
     struct td_list_head* prev;
 };
 
+#define TD_LIST_HEAD_INIT(name) { &(name), &(name) }
+
 /**
  * @brief Disk structure for device information
  */
 typedef struct disk_struct disk_t;
+
 struct disk_struct
 {
-    char description_txt[1024];    /**< Human-readable disk description */
-    char *device;                  /**< Device path (e.g., /dev/sda) */
-    uint64_t disk_size;            /**< Disk size in bytes */
-    unsigned int sector_size;      /**< Sector size in bytes */
+    char description_txt[1024]; /**< Human-readable disk description */
+    char* device; /**< Device path (e.g., /dev/sda) */
+    uint64_t disk_size; /**< Disk size in bytes */
+    unsigned int sector_size; /**< Sector size in bytes */
+    const struct arch_fnct_struct* arch; /**< Partition table architecture */
+    int unit; /**< Addressing unit type (UNIT_SECTOR or UNIT_CHS) */
     /* Note: This is a simplified view - full structure contains many more fields */
 };
 
-/* Additional required types */
-typedef enum upart_type {
-    UP_UNK=0, UP_APFS, UP_BEOS, UP_BTRFS, UP_CRAMFS, UP_EXFAT, UP_EXT2, UP_EXT3, UP_EXT4,
-    UP_EXTENDED, UP_FAT12, UP_FAT16, UP_FAT32, UP_FATX, UP_FREEBSD, UP_F2FS, UP_GFS2,
-    UP_HFS, UP_HFSP, UP_HFSX, UP_HPFS, UP_ISO, UP_JFS, UP_LINSWAP, UP_LINSWAP2,
+/* Partition types and related enums */
+typedef enum upart_type
+{
+    UP_UNK = 0, UP_APFS, UP_BEOS, UP_BTRFS, UP_CRAMFS, UP_EXFAT, UP_EXT2, UP_EXT3,
+    UP_EXT4, UP_EXTENDED, UP_FAT12, UP_FAT16, UP_FAT32, UP_FATX, UP_FREEBSD, UP_F2FS,
+    UP_GFS2, UP_HFS, UP_HFSP, UP_HFSX, UP_HPFS, UP_ISO, UP_JFS, UP_LINSWAP, UP_LINSWAP2,
     UP_LINSWAP_8K, UP_LINSWAP2_8K, UP_LINSWAP2_8KBE, UP_LUKS, UP_LVM, UP_LVM2,
     UP_MD, UP_MD1, UP_NETWARE, UP_NTFS, UP_OPENBSD, UP_OS2MB, UP_ReFS, UP_RFS,
     UP_RFS2, UP_RFS3, UP_RFS4, UP_SUN, UP_SYSV4, UP_UFS, UP_UFS2, UP_UFS_LE,
     UP_UFS2_LE, UP_VMFS, UP_WBFS, UP_XFS, UP_XFS2, UP_XFS3, UP_XFS4, UP_XFS5, UP_ZFS
 } upart_type_t;
 
-typedef enum status_type { 
-    STATUS_DELETED, STATUS_PRIM, STATUS_PRIM_BOOT, STATUS_LOG, STATUS_EXT, STATUS_EXT_IN_EXT
+typedef enum status_type
+{
+    STATUS_DELETED, STATUS_PRIM, STATUS_PRIM_BOOT, STATUS_LOG, STATUS_EXT,
+    STATUS_EXT_IN_EXT
 } status_type_t;
 
-typedef enum errcode_type {
+typedef enum errcode_type
+{
     BAD_NOERR, BAD_SS, BAD_ES, BAD_SH, BAD_EH, BAD_EBS, BAD_RS, BAD_SC, BAD_EC, BAD_SCOUNT
 } errcode_type_t;
 
 /* EFI GUID structure */
-struct efi_guid_s {
+struct efi_guid_s
+{
     uint32_t time_low;
     uint16_t time_mid;
     uint16_t time_hi_and_version;
-    uint8_t  clock_seq_hi_and_reserved;
-    uint8_t  clock_seq_low;
-    uint8_t  node[6];
+    uint8_t clock_seq_hi_and_reserved;
+    uint8_t clock_seq_low;
+    uint8_t node[6];
 };
+
 typedef struct efi_guid_s efi_guid_t;
 
 /* Forward declaration for arch functions */
 typedef struct arch_fnct_struct arch_fnct_t;
 
+struct arch_fnct_struct
+{
+  const char *part_name;
+  const char *part_name_option;
+  const char *msg_part_type;
+};
+
 /**
  * @brief Partition structure for filesystem information
  */
 typedef struct partition_struct partition_t;
+
 struct partition_struct
 {
-    char          fsname[128];        /**< Filesystem name */
-    char          partname[128];      /**< Partition name */
-    char          info[128];          /**< Additional information */
-    uint64_t      part_offset;        /**< Partition offset in bytes */
-    uint64_t      part_size;          /**< Partition size in bytes */
-    uint64_t      sborg_offset;       /**< Superblock origin offset */
-    uint64_t      sb_offset;          /**< Superblock offset */
-    unsigned int  sb_size;            /**< Superblock size */
-    unsigned int  blocksize;          /**< Block size */
-    efi_guid_t    part_uuid;          /**< Partition UUID (GPT) */
-    efi_guid_t    part_type_gpt;      /**< Partition type GUID (GPT) */
-    unsigned int  part_type_humax;    /**< Partition type (Humax) */
-    unsigned int  part_type_i386;     /**< Partition type (x86) */
-    unsigned int  part_type_mac;      /**< Partition type (Mac) */
-    unsigned int  part_type_sun;      /**< Partition type (Sun) */
-    unsigned int  part_type_xbox;     /**< Partition type (Xbox) */
-    upart_type_t  upart_type;         /**< Unified partition type */
-    status_type_t status;             /**< Partition status */
-    unsigned int  order;              /**< Partition order */
-    errcode_type_t errcode;           /**< Error code */
-    const arch_fnct_t *arch;          /**< Architecture functions */
+    char fsname[128]; /**< Filesystem name */
+    char partname[128]; /**< Partition name */
+    char info[128]; /**< Additional information */
+    uint64_t part_offset; /**< Partition offset in bytes */
+    uint64_t part_size; /**< Partition size in bytes */
+    uint64_t sborg_offset; /**< Superblock origin offset */
+    uint64_t sb_offset; /**< Superblock offset */
+    unsigned int sb_size; /**< Superblock size */
+    unsigned int blocksize; /**< Block size */
+    efi_guid_t part_uuid; /**< Partition UUID (GPT) */
+    efi_guid_t part_type_gpt; /**< Partition type GUID (GPT) */
+    unsigned int part_type_humax; /**< Partition type (Humax) */
+    unsigned int part_type_i386; /**< Partition type (x86) */
+    unsigned int part_type_mac; /**< Partition type (Mac) */
+    unsigned int part_type_sun; /**< Partition type (Sun) */
+    unsigned int part_type_xbox; /**< Partition type (Xbox) */
+    upart_type_t upart_type; /**< Unified partition type */
+    status_type_t status; /**< Partition status */
+    unsigned int order; /**< Partition order */
+    errcode_type_t errcode; /**< Error code */
+    const arch_fnct_t* arch; /**< Architecture functions */
 };
 
 /**
  * @brief Partition list structure for iteration
  */
 typedef struct list_part_struct list_part_t;
+
 struct list_part_struct
 {
-    partition_t *part;          /**< Pointer to partition structure */
-    list_part_t *prev;          /**< Previous partition in list */
-    list_part_t *next;          /**< Next partition in list */
-    int to_be_removed;          /**< Removal flag */
+    partition_t* part; /**< Pointer to partition structure */
+    list_part_t* prev; /**< Previous partition in list */
+    list_part_t* next; /**< Next partition in list */
+    int to_be_removed; /**< Removal flag */
 };
 
 /**
  * @brief File allocation list structure
  */
 typedef struct alloc_list_s alloc_list_t;
+
 struct alloc_list_s
 {
-    struct td_list_head list;   /**< Linked list node */
-    uint64_t start;             /**< Start offset */
-    uint64_t end;               /**< End offset */
-    unsigned int data;          /**< Additional data flags */
+    struct td_list_head list; /**< Linked list node */
+    uint64_t start; /**< Start offset */
+    uint64_t end; /**< End offset */
+    unsigned int data; /**< Additional data flags */
 };
 
 typedef struct file_hint_struct file_hint_t;
@@ -210,39 +237,44 @@ typedef struct file_enable_struct file_enable_t;
  * @brief File recovery state structure
  */
 typedef struct file_recovery_struct file_recovery_t;
+
 struct file_recovery_struct
 {
-    char filename[2048];                    /**< Output filename */
-    alloc_list_t location;                  /**< File location information */
-    file_stat_t *file_stat;                 /**< Associated file statistics */
-    FILE *handle;                           /**< File handle for writing */
-    time_t time;                            /**< File timestamp */
-    uint64_t file_size;                     /**< Current file size */
-    const char *extension;                  /**< File extension */
-    uint64_t min_filesize;                  /**< Minimum expected file size */
-    uint64_t offset_ok;                     /**< Last known good offset */
-    uint64_t offset_error;                  /**< First error offset */
-    uint64_t extra;                         /**< Extra bytes between offsets */
-    uint64_t calculated_file_size;          /**< Calculated file size */
-    data_check_t (*data_check)(const unsigned char*buffer, const unsigned int buffer_size, file_recovery_t *file_recovery); /**< Data validation function */
-    void (*file_check)(file_recovery_t *file_recovery);     /**< File validation function */
-    void (*file_rename)(file_recovery_t *file_recovery);    /**< File renaming function */
-    uint64_t checkpoint_offset;             /**< Checkpoint offset for resume */
-    int checkpoint_status;                  /**< Checkpoint status */
-    unsigned int blocksize;                 /**< Block size for recovery */
-    unsigned int flags;                     /**< Recovery flags */
-    unsigned int data_check_tmp;            /**< Temporary data check value */
+    char filename[2048]; /**< Output filename */
+    alloc_list_t location; /**< File location information */
+    file_stat_t* file_stat; /**< Associated file statistics */
+    FILE* handle; /**< File handle for writing */
+    time_t time; /**< File timestamp */
+    uint64_t file_size; /**< Current file size */
+    const char* extension; /**< File extension */
+    uint64_t min_filesize; /**< Minimum expected file size */
+    uint64_t offset_ok; /**< Last known good offset */
+    uint64_t offset_error; /**< First error offset */
+    uint64_t extra; /**< Extra bytes between offsets */
+    uint64_t calculated_file_size; /**< Calculated file size */
+    data_check_t (*data_check)(const unsigned char* buffer,
+                               unsigned int buffer_size,
+                               file_recovery_t* file_recovery);
+    /**< Data validation function */
+    void (*file_check)(file_recovery_t* file_recovery); /**< File validation function */
+    void (*file_rename)(file_recovery_t* file_recovery); /**< File renaming function */
+    uint64_t checkpoint_offset; /**< Checkpoint offset for resume */
+    int checkpoint_status; /**< Checkpoint status */
+    unsigned int blocksize; /**< Block size for recovery */
+    unsigned int flags; /**< Recovery flags */
+    unsigned int data_check_tmp; /**< Temporary data check value */
 };
 
 /**
  * @brief Disk list structure for iteration
  */
 typedef struct list_disk_struct list_disk_t;
+
 struct list_disk_struct
 {
-    disk_t* disk;           /**< Pointer to disk structure */
-    list_disk_t* prev;      /**< Previous disk in list */
-    list_disk_t* next;      /**< Next disk in list */
+    disk_t* disk; /**< Pointer to disk structure */
+    list_disk_t* prev; /**< Previous disk in list */
+    list_disk_t* next; /**< Next disk in list */
 };
 
 /* ============================================================================
@@ -328,153 +360,243 @@ typedef struct alloc_data_struct
     unsigned int data; /**< Additional data flags */
 } alloc_data_t;
 
+/**
+ * @brief PhotoRec CLI context - main API structure
+ * 
+ * This structure encapsulates all PhotoRec state and configuration,
+ * providing a context-based API for file recovery operations.
+ */
+typedef struct ph_cli_context ph_cli_context_t;
+
+struct ph_cli_context
+{
+    struct ph_options options; /**< Recovery options configuration */
+    struct ph_param params; /**< Recovery parameters and state */
+    int mode; /**< Disk access mode flags */
+    const arch_fnct_t** list_arch; /**< Available partition architectures */
+    list_disk_t* list_disk; /**< List of available disks */
+    list_part_t* list_part; /**< List of partitions on current disk */
+    alloc_data_t list_search_space; /**< Search space for recovery */
+};
+
 /* ============================================================================
- * DISK AND PARTITION MANAGEMENT
+ * MAIN API FUNCTIONS - Context Management
  * ============================================================================ */
 
 /**
- * @brief Scan system for available disks and images
- * @param list_disk Existing disk list to append to (can be NULL)
- * @param verbose Verbosity level for output
- * @param testdisk_mode Access mode flags
- * @return Linked list of discovered disks
+ * @brief Initialize PhotoRec context
+ * @param argc Command line argument count
+ * @param argv Command line arguments
+ * @return Initialized PhotoRec context, or NULL on failure
+ * 
+ * This function initializes a new PhotoRec context with default settings,
+ * discovers available disks, and prepares the system for file recovery.
  */
-list_disk_t* hd_parse(list_disk_t* list_disk, int verbose, int testdisk_mode);
+ph_cli_context_t* init_photorec(int argc, char* argv[]);
 
 /**
- * @brief Update geometry information for all disks
- * @param list_disk List of disks to update
- * @param verbose Verbosity level
+ * @brief Run PhotoRec file recovery
+ * @param ctx PhotoRec context
+ * @return 0 on success, non-zero on error
+ * 
+ * Executes the main PhotoRec recovery process using the current
+ * context configuration. This function will run until completion
+ * or user interruption.
  */
-void hd_update_all_geometry(list_disk_t* list_disk, int verbose);
+int run_photorec(ph_cli_context_t* ctx);
 
 /**
- * @brief Create disk cache wrapper for improved performance
- * @param disk Original disk structure
- * @param testdisk_mode Access mode flags
- * @return Cached disk structure
+ * @brief Clean up PhotoRec context
+ * @param ctx PhotoRec context to clean up
+ *
+ * Frees all resources associated with the PhotoRec context including
+ * disk lists, partition lists, and allocated memory.
  */
-disk_t* new_diskcache(disk_t* disk, int testdisk_mode);
+void finish_photorec(ph_cli_context_t* ctx);
+
 
 /**
- * @brief Free disk list and associated resources
- * @param list_disk Disk list to free
+ * @brief Abort PhotoRec file recovery
+ * @param ctx PhotoRec context
  */
-void delete_list_disk(list_disk_t* list_disk);
-
-/**
- * @brief Test file/device availability and create disk structure
- * @param device_path Path to device or image file
- * @param verbose Verbosity level
- * @param testdisk_mode Access mode flags
- * @return Disk structure or NULL on failure
- */
-disk_t* file_test_availability(const char* device_path, int verbose, int testdisk_mode);
-
-/**
- * @brief Initialize partition list for a disk
- * @param disk Target disk
- * @param options Recovery options (can be NULL)
- * @return Linked list of partitions
- */
-list_part_t* init_list_part(disk_t* disk, const struct ph_options* options);
-
-/**
- * @brief Free partition list
- * @param list_part Partition list to free
- */
-void part_free_list(list_part_t* list_part);
+void abort_photorec(ph_cli_context_t* ctx);
 
 /* ============================================================================
- * RECOVERY PARAMETER MANAGEMENT
+ * CONFIGURATION FUNCTIONS - Disk and Partition Selection
  * ============================================================================ */
 
 /**
- * @brief Reset recovery parameters to initial state
- * @param params Parameter structure to reset
- * @param options Recovery options
+ * @brief Change the target disk for recovery
+ * @param ctx PhotoRec context
+ * @param device Device path (e.g., "/dev/sda" or image file path)
+ * @return Selected disk structure, or NULL if not found
+ * 
+ * Selects the specified disk and initializes the partition list.
+ * The device can be a physical disk or an image file.
  */
-void params_reset(struct ph_param* params, const struct ph_options* options);
+disk_t* change_disk(ph_cli_context_t* ctx, const char* device);
 
 /**
- * @brief Advance to next recovery phase
- * @param params Recovery parameters
- * @param options Recovery options
+ * @brief Change the partition table architecture
+ * @param ctx PhotoRec context
+ * @param part_name_option Partition name option (can be NULL for auto-detect)
+ * @return Selected architecture structure
+ * 
+ * Manually sets or auto-detects the partition table architecture
+ * (GPT, MBR, Mac, Sun, etc.) and updates the disk unit accordingly.
  */
-void status_inc(struct ph_param* params, const struct ph_options* options);
+const arch_fnct_t* change_arch(const ph_cli_context_t* ctx, char* part_name_option);
 
 /**
- * @brief Get human-readable name for recovery status
- * @param status Recovery status code
- * @return Status name string
+ * @brief Change the target partition for recovery
+ * @param ctx PhotoRec context
+ * @param order Partition order number
+ * @return Selected partition structure, or NULL if not found
+ * 
+ * Selects a specific partition by its order number for recovery.
  */
-const char* status_to_name(photorec_status_t status);
+partition_t* change_part(ph_cli_context_t* ctx, int order);
 
 /* ============================================================================
- * SEARCH SPACE MANAGEMENT
+ * CONFIGURATION FUNCTIONS - Recovery Options
  * ============================================================================ */
 
 /**
- * @brief Initialize search space for a partition
- * @param list_search_space Search space list to initialize
- * @param disk Target disk
- * @param partition Target partition
+ * @brief Change recovery options
+ * @param ctx PhotoRec context
+ * @param paranoid Paranoid mode level (0-2)
+ * @param keep_corrupted_file Keep corrupted files (0=no, 1=yes)
+ * @param mode_ext2 Enable EXT2/3/4 optimizations (0=no, 1=yes)
+ * @param expert Enable expert mode (0=no, 1=yes)
+ * @param lowmem Use low memory mode (0=no, 1=yes)
+ * @param verbose Verbose output (0=no, 1=yes)
+ * 
+ * Configures various recovery options that affect how PhotoRec
+ * performs file recovery and validation.
  */
-void init_search_space(alloc_data_t* list_search_space, disk_t* disk,
-                       partition_t* partition);
+void change_options(ph_cli_context_t* ctx, int paranoid,
+                    int keep_corrupted_file, int mode_ext2, int expert,
+                    int lowmem, int verbose);
 
 /**
- * @brief Update block size based on search space analysis
- * @param list_search_space Search space
- * @param blocksize Current block size
- * @param offset Current offset
- * @param force_blocksize Force specific block size
- * @return Updated block size
+ * @brief Change recovery status/phase
+ * @param ctx PhotoRec context
+ * @param status Recovery status to set
+ * 
+ * Sets the initial recovery phase. Useful for resuming recovery
+ * from a specific phase or skipping certain phases.
  */
-unsigned int update_blocksize(alloc_data_t* list_search_space, unsigned int blocksize,
-                              const uint64_t offset, const int force_blocksize);
+void change_status(ph_cli_context_t* ctx, photorec_status_t status);
 
 /**
- * @brief Remove used space from search space
- * @param list_search_space Search space
- * @param start Start offset to remove
- * @param end End offset to remove
+ * @brief Change block size for recovery
+ * @param ctx PhotoRec context
+ * @param blocksize Block size in bytes (0 for auto-detect)
+ * @return 0 on success, non-zero on error
+ * 
+ * Sets the block size used for recovery operations. Setting to 0
+ * enables automatic block size detection.
  */
-void remove_used_space(alloc_data_t* list_search_space, uint64_t start, uint64_t end);
+int change_blocksize(ph_cli_context_t* ctx, unsigned int blocksize);
 
 /**
- * @brief Get next sector in search space
- * @param list_search_space Search space
- * @param current_search_space Current search space element
- * @param offset Current offset (updated)
- * @param blocksize Block size
- * @return 0 if next sector found, non-zero if end reached
+ * @brief Configure search space (free space only vs. entire partition)
+ * @param ctx PhotoRec context
+ * @param free_space_only 1 to scan only free space, 0 to scan entire partition
+ * 
+ * Determines whether PhotoRec should scan the entire partition or
+ * only the unallocated (free) space.
  */
-int get_next_sector(alloc_data_t* list_search_space, alloc_data_t** current_search_space,
-                    uint64_t* offset, unsigned int blocksize);
-
-/**
- * @brief Display search space information
- * @param list_search_space Search space
- * @param current_search_space Current element
- * @param sector_size Sector size
- * @param keep_corrupted_file Whether corrupted files are kept
- * @param verbose Verbosity level
- */
-void info_list_search_space(const alloc_data_t* list_search_space,
-                            const alloc_data_t* current_search_space,
-                            const unsigned int sector_size,
-                            const int keep_corrupted_file,
-                            const int verbose);
+void change_carve_space(ph_cli_context_t* ctx, int free_space_only);
 
 /* ============================================================================
- * FILE TYPE CONFIGURATION
+ * CONFIGURATION FUNCTIONS - File Type Selection
+ * ============================================================================ */
+
+/**
+ * @brief Enable or disable all file types
+ * @param ctx PhotoRec context
+ * @param all_enable_status 1 to enable all, 0 to disable all
+ * @return 0 on success, non-zero on error
+ * 
+ * Bulk enable or disable all supported file types for recovery.
+ */
+int change_all_fileopt(const ph_cli_context_t* ctx, const int all_enable_status);
+
+/**
+ * @brief Configure specific file types for recovery
+ * @param ctx PhotoRec context
+ * @param exts_to_enable Array of file extensions to enable
+ * @param exts_to_enable_count Number of extensions to enable
+ * @param exts_to_disable Array of file extensions to disable
+ * @param exts_to_disable_count Number of extensions to disable
+ * @return 0 on success, non-zero on error
+ * 
+ * Selectively enable or disable specific file types by extension.
+ * This allows fine-grained control over which file types to recover.
+ */
+int change_fileopt(const ph_cli_context_t* ctx,
+                   char** exts_to_enable, int exts_to_enable_count,
+                   char** exts_to_disable, int exts_to_disable_count);
+
+/* ============================================================================
+ * CONFIGURATION FUNCTIONS - Advanced Options
+ * ============================================================================ */
+
+/**
+ * @brief Change disk geometry settings
+ * @param ctx PhotoRec context
+ * @param cylinders Number of cylinders
+ * @param heads_per_cylinder Number of heads per cylinder
+ * @param sectors_per_head Number of sectors per head
+ * @param sector_size Sector size in bytes
+ * 
+ * Manually sets disk geometry parameters. This is typically only
+ * needed for very old disks or specialized image files.
+ */
+void change_geometry(ph_cli_context_t* ctx, unsigned int cylinders,
+                     unsigned int heads_per_cylinder,
+                     unsigned int sectors_per_head,
+                     unsigned int sector_size);
+
+/**
+ * @brief Configure EXT2/3/4 group mode
+ * @param ctx PhotoRec context
+ * @param group_number EXT2/3/4 group number
+ * 
+ * Sets specific EXT2/3/4 group for optimized recovery.
+ */
+void change_ext2_mode(ph_cli_context_t* ctx, int group_number);
+
+/**
+ * @brief Configure EXT2/3/4 inode mode
+ * @param ctx PhotoRec context
+ * @param inode_number EXT2/3/4 inode number
+ * 
+ * Sets specific EXT2/3/4 inode for optimized recovery.
+ */
+void change_ext2_inode(ph_cli_context_t* ctx, int inode_number);
+
+/**
+ * @brief General configuration interface
+ * @param ctx PhotoRec context
+ * @param cmd Configuration command string
+ * @return 0 on success, non-zero on error
+ * 
+ * Provides a generic interface for sending configuration commands
+ * to PhotoRec. This allows access to advanced features not covered
+ * by the specific configuration functions.
+ */
+int config_photorec(ph_cli_context_t* ctx, char* cmd);
+
+/* ============================================================================
+ * UTILITY FUNCTIONS AND GLOBALS
  * ============================================================================ */
 
 /**
  * @brief Array of all supported file types
  */
-extern file_enable_t array_file_enable[];
+extern const file_enable_t array_file_enable[];
 
 /**
  * @brief Reset file type settings to defaults
@@ -496,159 +618,90 @@ int file_options_load(file_enable_t* files_enable);
  */
 int file_options_save(file_enable_t* files_enable);
 
+/**
+ * @brief Get human-readable name for recovery status
+ * @param status Recovery status code
+ * @return Status name string
+ */
+const char* status_to_name(photorec_status_t status);
+
 /* ============================================================================
- * CORE RECOVERY FUNCTIONS
+ * LOWER-LEVEL UTILITY FUNCTIONS (used internally)
  * ============================================================================ */
 
 /**
- * @brief Main recovery function
- * @param params Recovery parameters
- * @param options Recovery options
- * @param list_search_space Search space
- * @return 0 on success, non-zero on error
- */
-int photorec(struct ph_param* params, const struct ph_options* options,
-             alloc_data_t* list_search_space);
+* @brief Scan system for available disks and images
+* @param list_disk Existing disk list to append to (can be NULL)
+* @param verbose Verbosity level for output
+* @param testdisk_mode Access mode flags
+* @return Linked list of discovered disks
+*/
+list_disk_t* hd_parse(list_disk_t* list_disk, int verbose, int testdisk_mode);
 
 /**
- * @brief Standard recovery algorithm
- * @param params Recovery parameters
- * @param options Recovery options
- * @param list_search_space Search space
- * @return Process status
+ * @brief Update geometry information for all disks
+ * @param list_disk List of disks to update
+ * @param verbose Verbosity level
  */
-pstatus_t photorec_aux(struct ph_param* params, const struct ph_options* options,
-                       alloc_data_t* list_search_space);
+void hd_update_all_geometry(list_disk_t* list_disk, int verbose);
 
 /**
- * @brief Brute force recovery for fragmented files
- * @param params Recovery parameters
- * @param options Recovery options
- * @param list_search_space Search space
- * @return Process status
+ * @brief Create disk cache wrapper for improved performance
+ * @param disk Original disk structure
+ * @param testdisk_mode Access mode flags
+ * @return Cached disk structure
  */
-pstatus_t photorec_bf(struct ph_param* params, const struct ph_options* options,
-                      alloc_data_t* list_search_space);
+disk_t* new_diskcache(disk_t* disk, int testdisk_mode);
 
 /**
- * @brief Find optimal block size for recovery
- * @param params Recovery parameters
- * @param options Recovery options
- * @param list_search_space Search space
- * @return Process status
+ * @brief Insert a new disk into the list of disks
+ * @param list_disk List of disks
+ * @param disk Disk to insert
+ * @return List of disks
  */
-pstatus_t photorec_find_blocksize(struct ph_param* params,
-                                  const struct ph_options* options,
-                                  alloc_data_t* list_search_space);
+list_disk_t* insert_new_disk(list_disk_t* list_disk, disk_t* disk);
 
 /**
- * @brief FAT unformat recovery
- * @param params Recovery parameters
- * @param options Recovery options
- * @param list_search_space Search space
- * @return Process status
- */
-pstatus_t fat_unformat(struct ph_param* params, const struct ph_options* options,
-                       alloc_data_t* list_search_space);
-
-/* ============================================================================
- * FILE RECOVERY SUPPORT FUNCTIONS
- * ============================================================================ */
+* @brief Test file/device availability and create disk structure
+* @param device_path Path to device or image file
+* @param verbose Verbosity level
+* @param testdisk_mode Access mode flags
+* @return Disk structure or NULL on failure
+*/
+disk_t* file_test_availability(const char* device_path, int verbose, int testdisk_mode);
 
 /**
- * @brief Finalize file recovery (standard mode)
- * @param file_recovery File recovery state
- * @param params Recovery parameters
- * @param paranoid Paranoid verification level
- * @param list_search_space Search space
- * @return File recovery status
+ * @brief Free disk list and associated resources
+ * @param list_disk Disk list to free
  */
-pfstatus_t file_finish2(file_recovery_t* file_recovery, struct ph_param* params,
-                        const int paranoid, alloc_data_t* list_search_space);
+void delete_list_disk(list_disk_t* list_disk);
 
 /**
- * @brief Handle aborted file recovery
- * @param file_recovery File recovery state
- * @param params Recovery parameters
- * @param list_search_space Search space
+ * @brief Initialize partition list for a disk
+ * @param disk Target disk
+ * @param options Recovery options (can be NULL)
+ * @return Linked list of partitions
  */
-void file_recovery_aborted(file_recovery_t* file_recovery, struct ph_param* params,
-                           alloc_data_t* list_search_space);
+list_part_t* init_list_part(disk_t* disk, const struct ph_options* options);
 
 /**
- * @brief Set filename for recovered file
- * @param file_recovery File recovery state
- * @param params Recovery parameters
+ * @brief Free partition list
+ * @param list_part Partition list to free
  */
-void set_filename(file_recovery_t* file_recovery, struct ph_param* params);
-
-/* ============================================================================
- * SESSION MANAGEMENT
- * ============================================================================ */
+void part_free_list(list_part_t* list_part);
 
 /**
- * @brief Save recovery session state
- * @param list_search_space Current search space
- * @param params Recovery parameters
- * @param options Recovery options
- * @return 0 on success, -1 on failure
+ * @brief Automatically set disk unit type based on partition table
+ * @param disk Target disk structure
  */
-int session_save(const alloc_data_t* list_search_space, const struct ph_param* params,
-                 const struct ph_options* options);
+void autoset_unit(disk_t* disk);
 
 /**
- * @brief Load previous recovery session
- * @param cmd_device Device path (output)
- * @param current_cmd Command line (output)
- * @param list_search_space Search space to restore
- * @return 0 on success, -1 on failure
+ * @brief Automatically detect partition table architecture
+ * @param disk Target disk structure
+ * @param arch Fallback architecture (can be NULL)
  */
-int session_load(char** cmd_device, char** current_cmd, alloc_data_t* list_search_space);
-
-/**
- * @brief Perform regular session save during recovery
- * @param list_search_space Current search space
- * @param params Recovery parameters
- * @param options Recovery options
- * @param current_time Current timestamp
- * @return Next checkpoint time
- */
-time_t regular_session_save(alloc_data_t* list_search_space, struct ph_param* params,
-                            const struct ph_options* options, time_t current_time);
-
-/* ============================================================================
- * UTILITY FUNCTIONS
- * ============================================================================ */
-
-/**
- * @brief Create recovery output directory
- * @param recup_dir Base directory path
- * @param initial_dir_num Starting directory number
- * @return Next directory number
- */
-unsigned int photorec_mkdir(const char* recup_dir, const unsigned int initial_dir_num);
-
-/**
- * @brief Update recovery statistics
- * @param file_stats Statistics to update
- * @param list_search_space Current search space
- */
-void update_stats(file_stat_t* file_stats, alloc_data_t* list_search_space);
-
-/**
- * @brief Find block size from search space analysis
- * @param list_search_space Search space
- * @param sector_size Disk sector size
- * @param start_offset Starting offset (output)
- * @return Detected block size
- */
-unsigned int find_blocksize(alloc_data_t* list_search_space, unsigned int sector_size,
-                            uint64_t* start_offset);
-
-/**
- * @brief Global stop flag for user interruption
- */
-extern int need_to_stop;
+void autodetect_arch(disk_t* disk, const arch_fnct_t* arch);
 
 #ifdef __cplusplus
 }

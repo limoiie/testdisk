@@ -434,7 +434,7 @@ QT_TS = \
   lang/qphotorec.zh_TW.ts
 
 # Library source definitions (excluding UI components and main functions)
-libphotorec_core_C	= photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c
+libphotorec_core_C	= photorec_api.c photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c fat_unformat.c phcli.c psearchn.c phbf.c pdisksel.c phbs.c poptions.c pbanner.c intrfn.c fat_cluster.c pblocksize.c phnc.c
 
 libphotorec_core_H	= phcfg.h addpart.h chgarch.h chgtype.h dfxml.h dir_common.h dir.h exfatp.h ext2grp.h ext2p.h ext2_dir.h ext2_inc.h fat_dir.h fatp.h file_found.h geometry.h memmem.h ntfs_dir.h ntfsp.h ntfs_inc.h photorec_check_header.h psearch.h sessionp.h fat_cluster.h fat_unformat.h
 
