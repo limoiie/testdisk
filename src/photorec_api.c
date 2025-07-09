@@ -74,6 +74,7 @@
 #include "hdcache.h"
 #include "partauto.h"
 #include "pdisksel.h"
+#include "pfree_whole.h"
 #include "phcli.h"
 #include "poptions.h"
 #include "psearchn.h"
@@ -91,7 +92,10 @@ typedef struct ph_cli_context
     list_disk_t* list_disk;
     list_part_t* list_part;
     alloc_data_t list_search_space;
+    int log_opened;
+    int log_errno;
 } ph_cli_context_t;
+
 extern const file_enable_t array_file_enable[];
 
 extern const arch_fnct_t arch_none;
@@ -176,6 +180,7 @@ disk_t* change_disk(ph_cli_context_t* ctx, const char* device)
     {
         return NULL;
     }
+    ctx->params.disk = selected;
     ctx->list_part = init_list_part(selected, &ctx->options);
     return selected;
 }
@@ -188,7 +193,8 @@ const arch_fnct_t* change_arch(const ph_cli_context_t* ctx, char* part_name_opti
     return ctx->params.disk->arch;
 }
 
-partition_t* change_part(ph_cli_context_t* ctx, const int order)
+partition_t* change_part(ph_cli_context_t* ctx, const int order, const int mode_ext2,
+                         const int carve_free_space_only)
 {
     for (const list_part_t* element = ctx->list_part;
          element != NULL;
@@ -197,6 +203,28 @@ partition_t* change_part(ph_cli_context_t* ctx, const int order)
         if (element->part->order == order)
         {
             ctx->params.partition = element->part;
+            ctx->params.carve_free_space_only = carve_free_space_only;
+            ctx->options.mode_ext2 = mode_ext2;
+
+            // Initialize search space
+            if (td_list_empty(&ctx->list_search_space.list))
+            {
+                init_search_space(&ctx->list_search_space, ctx->params.disk,
+                                  ctx->params.partition);
+            }
+
+            // Initialize blocksize
+            if (ctx->params.carve_free_space_only > 0)
+            {
+                ctx->params.blocksize = remove_used_space(
+                    ctx->params.disk, ctx->params.partition, &ctx->list_search_space);
+                /* Only free space is carved, list_search_space is modified.
+                 * To carve the whole space, need to quit and reselect the params->partition */
+            }
+            else
+            {
+                ctx->params.blocksize = ctx->params.partition->blocksize;
+            }
             return element->part;
         }
     }
@@ -288,11 +316,6 @@ void change_geometry(ph_cli_context_t* ctx, const unsigned int cylinders,
     free(x);
 }
 
-void change_carve_space(ph_cli_context_t* ctx, const int free_space_only)
-{
-    ctx->params.carve_free_space_only = free_space_only;
-}
-
 void change_ext2_mode(ph_cli_context_t* ctx, const int group_number)
 {
     char* x = MALLOC(100);
@@ -320,7 +343,8 @@ int config_photorec(ph_cli_context_t* ctx, char* cmd)
                              &ctx->list_search_space);
 }
 
-ph_cli_context_t* init_photorec(int argc, char* argv[])
+ph_cli_context_t* init_photorec(int argc, char* argv[], char* recup_dir, char* device,
+                                const int log_mode, const char* log_file)
 {
 #if defined(ENABLE_DFXML)
     xml_set_command_line(argc, argv);
@@ -334,12 +358,12 @@ ph_cli_context_t* init_photorec(int argc, char* argv[])
             .mode_ext2 = 0,
             .expert = 0,
             .lowmem = 0,
-            .verbose = 0,
-            .list_file_format = array_file_enable
+            .verbose = log_mode == 2 ? 1 : 0,
+            .list_file_format = (file_enable_t*)array_file_enable
         },
         .params = {
-            .recup_dir = NULL,
-            .cmd_device = NULL,
+            .recup_dir = recup_dir,
+            .cmd_device = device,
             .cmd_run = NULL,
             .carve_free_space_only = 0,
             .disk = NULL
@@ -350,12 +374,15 @@ ph_cli_context_t* init_photorec(int argc, char* argv[])
         .list_part = NULL,
         .list_search_space = {
             .list = TD_LIST_HEAD_INIT(ctx->list_search_space.list)
-        }
+        },
+        .log_opened = 0,
+        .log_errno = 0
     };
 
+    // TODO
     // Exec Mode
-    ctx->mode |= TESTDISK_O_ALL; // For /all
-    ctx->mode |= TESTDISK_O_DIRECT; // For /direct
+    // ctx->mode |= TESTDISK_O_ALL; // For /all
+    // ctx->mode |= TESTDISK_O_DIRECT; // For /direct
 
     // Prepare enabled file_options
     reset_array_file_enable(ctx->options.list_file_format);
@@ -363,36 +390,25 @@ ph_cli_context_t* init_photorec(int argc, char* argv[])
 
     // List disks, then update their metadata
     ctx->list_disk = init_list_disk(ctx);
+    ctx->log_opened = log_open(log_file, log_mode == 0 ? TD_LOG_NONE : TD_LOG_APPEND,
+                               &ctx->log_errno);
 
+    log_disk_list(ctx->list_disk);
     return ctx;
 }
 
-/**
- * @brief Finish PhotoRec context.
- *
- * Free the PhotoRec context and all associated resources.
- * @param ctx PhotoRec context
- */
 void finish_photorec(ph_cli_context_t* ctx)
 {
     part_free_list(ctx->list_part);
 #ifndef DISABLED_FOR_FRAMAC
     delete_list_disk(ctx->list_disk);
 #endif
-    free(ctx->params.recup_dir);
 #ifdef ENABLE_DFXML
     xml_clear_command_line();
 #endif
     free(ctx);
 }
 
-/**
- * @brief Run PhotoRec.
- *
- * Run PhotoRec with the given context.
- * @param ctx PhotoRec context
- * @return 0 on success, non-zero on error
- */
 int run_photorec(ph_cli_context_t* ctx)
 {
     need_to_stop = 0;
@@ -400,13 +416,39 @@ int run_photorec(ph_cli_context_t* ctx)
     const struct ph_options* options = &ctx->options;
     alloc_data_t* list_search_space = &ctx->list_search_space;
 
-    params->blocksize = 0;
     pstatus_t ind_stop = PSTATUS_OK;
     const unsigned int blocksize_is_known = params->blocksize;
 
     /*@ assert valid_read_string(ctx->params.recup_dir); */
     params_reset(params, options);
+
     /*@ assert valid_read_string(ctx->params.recup_dir); */
+    log_info("params->cmd_run: %s\n", params->cmd_run);
+    log_info("params->cmd_device: %s\n", params->cmd_device);
+    log_info("params->status: %d\n", params->status);
+    log_info("params->blocksize: %d\n", params->blocksize);
+    log_info("params->pass: %d\n", params->pass);
+    log_info("params->file_nbr: %d\n", params->file_nbr);
+    log_info("params->file_stats: %p\n", params->file_stats);
+    log_info("params->recup_dir: %s\n", params->recup_dir);
+    log_info("params->dir_num: %d\n", params->dir_num);
+    log_info("params->disk: %p\n", params->disk);
+    log_info("params->disk->device: %s\n", params->disk->device);
+    log_info("params->disk->disk_size: %llu\n", params->disk->disk_size);
+    log_info("params->disk->sector_size: %d\n", params->disk->sector_size);
+    log_info("params->disk->arch: %p\n", params->disk->arch);
+    log_info("params->disk->unit: %d\n", params->disk->unit);
+    log_info("params->partition: %p\n", params->partition);
+    log_info("params->real_start_time: %ld\n", params->real_start_time);
+    log_info("params->carve_free_space_only: %d\n", params->carve_free_space_only);
+    log_info("params->list_search_space: %p\n", list_search_space);
+    log_info("params->options: %p\n", options);
+    log_info("params->options->paranoid: %d\n", options->paranoid);
+    log_info("params->options->keep_corrupted_file: %d\n", options->keep_corrupted_file);
+    log_info("params->options->mode_ext2: %d\n", options->mode_ext2);
+    log_info("params->options->expert: %d\n", options->expert);
+    log_info("params->options->lowmem: %d\n", options->lowmem);
+    log_info("params->options->verbose: %d\n", options->verbose);
 
     /* Handle command-line status options - moved to change_status(..) */
 

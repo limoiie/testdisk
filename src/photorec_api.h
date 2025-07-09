@@ -111,6 +111,14 @@ struct td_list_head
 
 #define TD_LIST_HEAD_INIT(name) { &(name), &(name) }
 
+typedef struct
+{
+    unsigned long int cylinders;
+    unsigned int heads_per_cylinder;
+    unsigned int sectors_per_head;
+    unsigned int bytes_per_sector; /* WARN: may be uninitialized */
+} CHSgeometry_t;
+
 /**
  * @brief Disk structure for device information
  */
@@ -118,13 +126,56 @@ typedef struct disk_struct disk_t;
 
 struct disk_struct
 {
-    char description_txt[1024]; /**< Human-readable disk description */
-    char* device; /**< Device path (e.g., /dev/sda) */
+#define DISKNAME_MAX	64
+#define DISKDESCRIPTION_MAX	128
+    char description_txt[DISKDESCRIPTION_MAX]; /**< Human-readable disk description */
+    char description_short_txt[DISKDESCRIPTION_MAX];
+    /**< Human-readable disk description */
+    CHSgeometry_t geom; /* logical CHS */
     uint64_t disk_size; /**< Disk size in bytes */
-    unsigned int sector_size; /**< Sector size in bytes */
+    char* device; /**< Device path (e.g., /dev/sda) */
+    char* model; /**< Model */
+    char* serial_no; /**< Serial number */
+    char* fw_rev; /**< Firmware revision */
+    const char*(*description)(disk_t* disk); /**< Description function */
+    const char*(*description_short)(disk_t* disk); /**< Short description function */
+    int (*pread)(disk_t* disk, void* buf, const unsigned int count,
+                 const uint64_t offset); /**< Read function */
+    int (*pwrite)(disk_t* disk, const void* buf, const unsigned int count,
+                  const uint64_t offset); /**< Write function */
+    int (*sync)(disk_t* disk); /**< Sync function */
+    void (*clean)(disk_t* disk); /**< Clean function */
     const struct arch_fnct_struct* arch; /**< Partition table architecture */
-    int unit; /**< Addressing unit type (UNIT_SECTOR or UNIT_CHS) */
-    /* Note: This is a simplified view - full structure contains many more fields */
+    const struct arch_fnct_struct* arch_autodetected;
+    /**< Autodetected partition table architecture */
+    void* data; /**< Data */
+    uint64_t disk_real_size; /**< Real disk size */
+    uint64_t user_max; /**< User max */
+    uint64_t native_max; /**< Native max */
+    uint64_t dco; /**< DCO */
+    uint64_t offset;
+    /* offset to first sector, may be modified in the futur to handle broken raid */
+    void* rbuffer; /**< Read buffer */
+    void* wbuffer; /**< Write buffer */
+    unsigned int rbuffer_size; /**< Read buffer size */
+    unsigned int wbuffer_size; /**< Write buffer size */
+    int write_used; /**< Write used */
+    int autodetect; /**< Autodetect */
+    int access_mode; /**< Access mode */
+    int unit; /**< Unit */
+    unsigned int sector_size; /**< Sector size */
+};
+
+/**
+ * @brief Disk list structure for iteration
+ */
+typedef struct list_disk_struct list_disk_t;
+
+struct list_disk_struct
+{
+    disk_t* disk; /**< Pointer to disk structure */
+    list_disk_t* prev; /**< Previous disk in list */
+    list_disk_t* next; /**< Next disk in list */
 };
 
 /* Partition types and related enums */
@@ -151,6 +202,8 @@ typedef enum errcode_type
 } errcode_type_t;
 
 /* EFI GUID structure */
+typedef struct efi_guid_s efi_guid_t;
+
 struct efi_guid_s
 {
     uint32_t time_low;
@@ -159,18 +212,6 @@ struct efi_guid_s
     uint8_t clock_seq_hi_and_reserved;
     uint8_t clock_seq_low;
     uint8_t node[6];
-};
-
-typedef struct efi_guid_s efi_guid_t;
-
-/* Forward declaration for arch functions */
-typedef struct arch_fnct_struct arch_fnct_t;
-
-struct arch_fnct_struct
-{
-  const char *part_name;
-  const char *part_name_option;
-  const char *msg_part_type;
 };
 
 /**
@@ -200,7 +241,7 @@ struct partition_struct
     status_type_t status; /**< Partition status */
     unsigned int order; /**< Partition order */
     errcode_type_t errcode; /**< Error code */
-    const arch_fnct_t* arch; /**< Architecture functions */
+    const struct arch_fnct_struct* arch; /**< Architecture functions */
 };
 
 /**
@@ -265,16 +306,33 @@ struct file_recovery_struct
     unsigned int data_check_tmp; /**< Temporary data check value */
 };
 
-/**
- * @brief Disk list structure for iteration
- */
-typedef struct list_disk_struct list_disk_t;
+/* Forward declaration for arch functions */
+typedef struct arch_fnct_struct arch_fnct_t;
 
-struct list_disk_struct
+struct arch_fnct_struct
 {
-    disk_t* disk; /**< Pointer to disk structure */
-    list_disk_t* prev; /**< Previous disk in list */
-    list_disk_t* next; /**< Next disk in list */
+    const char* part_name;
+    const char* part_name_option;
+    const char* msg_part_type;
+    list_part_t*(*read_part)(disk_t* disk, const int verbose, const int saveheader);
+    int (*write_part)(disk_t* disk, const list_part_t* list_part, const int ro,
+                      const int verbose);
+    list_part_t*(*init_part_order)(const disk_t* disk, list_part_t* list_part);
+    /* geometry must be initialized to 0,0,0 in get_geometry_from_mbr()*/
+    int (*get_geometry_from_mbr)(const unsigned char* buffer, const int verbose,
+                                 CHSgeometry_t* geometry);
+    int (*check_part)(disk_t* disk, const int verbose, partition_t* partition,
+                      const int saveheader);
+    int (*write_MBR_code)(disk_t* disk);
+    void (*set_prev_status)(const disk_t* disk, partition_t* partition);
+    void (*set_next_status)(const disk_t* disk, partition_t* partition);
+    int (*test_structure)(const list_part_t* list_part);
+    unsigned int (*get_part_type)(const partition_t* partition);
+    int (*set_part_type)(partition_t* partition, unsigned int part_type);
+    void (*init_structure)(const disk_t* disk, list_part_t* list_part, const int verbose);
+    int (*erase_list_part)(disk_t* disk);
+    const char*(*get_partition_typename)(const partition_t* partition);
+    int (*is_part_known)(const partition_t* partition);
 };
 
 /* ============================================================================
@@ -362,7 +420,7 @@ typedef struct alloc_data_struct
 
 /**
  * @brief PhotoRec CLI context - main API structure
- * 
+ *
  * This structure encapsulates all PhotoRec state and configuration,
  * providing a context-based API for file recovery operations.
  */
@@ -377,6 +435,8 @@ struct ph_cli_context
     list_disk_t* list_disk; /**< List of available disks */
     list_part_t* list_part; /**< List of partitions on current disk */
     alloc_data_t list_search_space; /**< Search space for recovery */
+    int log_opened; /**< Log file opened */
+    int log_errno; /**< Log file error number */
 };
 
 /* ============================================================================
@@ -387,18 +447,23 @@ struct ph_cli_context
  * @brief Initialize PhotoRec context
  * @param argc Command line argument count
  * @param argv Command line arguments
+ * @param recup_dir Recovery directory
+ * @param device Device path (e.g., "/dev/sda" or image file path)
+ * @param log_mode Log mode. 0: no log, 1: info, 2: debug
+ * @param log_file Log file
  * @return Initialized PhotoRec context, or NULL on failure
- * 
+ *
  * This function initializes a new PhotoRec context with default settings,
  * discovers available disks, and prepares the system for file recovery.
  */
-ph_cli_context_t* init_photorec(int argc, char* argv[]);
+ph_cli_context_t* init_photorec(int argc, char* argv[], char* recup_dir, char* device,
+                                int log_mode, const char* log_file);
 
 /**
  * @brief Run PhotoRec file recovery
  * @param ctx PhotoRec context
  * @return 0 on success, non-zero on error
- * 
+ *
  * Executes the main PhotoRec recovery process using the current
  * context configuration. This function will run until completion
  * or user interruption.
@@ -413,7 +478,6 @@ int run_photorec(ph_cli_context_t* ctx);
  * disk lists, partition lists, and allocated memory.
  */
 void finish_photorec(ph_cli_context_t* ctx);
-
 
 /**
  * @brief Abort PhotoRec file recovery
@@ -430,7 +494,7 @@ void abort_photorec(ph_cli_context_t* ctx);
  * @param ctx PhotoRec context
  * @param device Device path (e.g., "/dev/sda" or image file path)
  * @return Selected disk structure, or NULL if not found
- * 
+ *
  * Selects the specified disk and initializes the partition list.
  * The device can be a physical disk or an image file.
  */
@@ -441,7 +505,7 @@ disk_t* change_disk(ph_cli_context_t* ctx, const char* device);
  * @param ctx PhotoRec context
  * @param part_name_option Partition name option (can be NULL for auto-detect)
  * @return Selected architecture structure
- * 
+ *
  * Manually sets or auto-detects the partition table architecture
  * (GPT, MBR, Mac, Sun, etc.) and updates the disk unit accordingly.
  */
@@ -451,11 +515,14 @@ const arch_fnct_t* change_arch(const ph_cli_context_t* ctx, char* part_name_opti
  * @brief Change the target partition for recovery
  * @param ctx PhotoRec context
  * @param order Partition order number
+ * @param mode_ext2 Enable EXT2/3/4 optimizations (0=no, 1=yes)
+ * @param carve_free_space_only Only scan unallocated space (0=no, 1=yes)
  * @return Selected partition structure, or NULL if not found
- * 
+ *
  * Selects a specific partition by its order number for recovery.
  */
-partition_t* change_part(ph_cli_context_t* ctx, int order);
+partition_t* change_part(ph_cli_context_t* ctx, int order, int mode_ext2,
+                         int carve_free_space_only);
 
 /* ============================================================================
  * CONFIGURATION FUNCTIONS - Recovery Options
@@ -498,16 +565,6 @@ void change_status(ph_cli_context_t* ctx, photorec_status_t status);
  * enables automatic block size detection.
  */
 int change_blocksize(ph_cli_context_t* ctx, unsigned int blocksize);
-
-/**
- * @brief Configure search space (free space only vs. entire partition)
- * @param ctx PhotoRec context
- * @param free_space_only 1 to scan only free space, 0 to scan entire partition
- * 
- * Determines whether PhotoRec should scan the entire partition or
- * only the unallocated (free) space.
- */
-void change_carve_space(ph_cli_context_t* ctx, int free_space_only);
 
 /* ============================================================================
  * CONFIGURATION FUNCTIONS - File Type Selection
