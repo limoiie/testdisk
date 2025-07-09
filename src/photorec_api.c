@@ -147,6 +147,14 @@ static const arch_fnct_t* list_arch[] = {
     NULL
 };
 
+char *strdup(const char *src)
+{
+    size_t n = strlen(src);
+    char *ret = MALLOC(n + 1);
+    memcpy(ret, src, n + 1);
+    return ret;
+}
+
 list_disk_t* init_list_disk(const ph_cli_context_t* ctx)
 {
     list_disk_t* list_disk = NULL;
@@ -347,8 +355,9 @@ int config_photorec(ph_cli_context_t* ctx, char* cmd)
                              &ctx->list_search_space);
 }
 
-ph_cli_context_t* init_photorec(int argc, char* argv[], char* recup_dir, char* device,
-                                const int log_mode, const char* log_file)
+ph_cli_context_t *init_photorec(int argc, char *argv[], const char *recup_dir,
+                                const char *device, const int log_mode,
+                                const char* log_file)
 {
 #if defined(ENABLE_DFXML)
     xml_set_command_line(argc, argv);
@@ -366,8 +375,8 @@ ph_cli_context_t* init_photorec(int argc, char* argv[], char* recup_dir, char* d
             .list_file_format = (file_enable_t*)array_file_enable
         },
         .params = {
-            .recup_dir = recup_dir,
-            .cmd_device = device,
+            .recup_dir = strdup(recup_dir),
+            .cmd_device = strdup(device),
             .cmd_run = NULL,
             .carve_free_space_only = 0,
             .disk = NULL
@@ -410,6 +419,8 @@ void finish_photorec(ph_cli_context_t* ctx)
 #ifdef ENABLE_DFXML
     xml_clear_command_line();
 #endif
+    free(ctx->params.recup_dir);
+    free(ctx->params.cmd_device);
     free(ctx);
 }
 
@@ -425,34 +436,6 @@ int run_photorec(ph_cli_context_t* ctx)
 
     /*@ assert valid_read_string(ctx->params.recup_dir); */
     params_reset(params, options);
-
-    /*@ assert valid_read_string(ctx->params.recup_dir); */
-    log_info("params->cmd_run: %s\n", params->cmd_run);
-    log_info("params->cmd_device: %s\n", params->cmd_device);
-    log_info("params->status: %d\n", params->status);
-    log_info("params->blocksize: %d\n", params->blocksize);
-    log_info("params->pass: %d\n", params->pass);
-    log_info("params->file_nbr: %d\n", params->file_nbr);
-    log_info("params->file_stats: %p\n", params->file_stats);
-    log_info("params->recup_dir: %s\n", params->recup_dir);
-    log_info("params->dir_num: %d\n", params->dir_num);
-    log_info("params->disk: %p\n", params->disk);
-    log_info("params->disk->device: %s\n", params->disk->device);
-    log_info("params->disk->disk_size: %llu\n", params->disk->disk_size);
-    log_info("params->disk->sector_size: %d\n", params->disk->sector_size);
-    log_info("params->disk->arch: %p\n", params->disk->arch);
-    log_info("params->disk->unit: %d\n", params->disk->unit);
-    log_info("params->partition: %p\n", params->partition);
-    log_info("params->real_start_time: %ld\n", params->real_start_time);
-    log_info("params->carve_free_space_only: %d\n", params->carve_free_space_only);
-    log_info("params->list_search_space: %p\n", list_search_space);
-    log_info("params->options: %p\n", options);
-    log_info("params->options->paranoid: %d\n", options->paranoid);
-    log_info("params->options->keep_corrupted_file: %d\n", options->keep_corrupted_file);
-    log_info("params->options->mode_ext2: %d\n", options->mode_ext2);
-    log_info("params->options->expert: %d\n", options->expert);
-    log_info("params->options->lowmem: %d\n", options->lowmem);
-    log_info("params->options->verbose: %d\n", options->verbose);
 
     /* Handle command-line status options - moved to change_status(..) */
 

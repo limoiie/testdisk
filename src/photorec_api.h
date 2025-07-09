@@ -456,8 +456,8 @@ struct ph_cli_context
  * This function initializes a new PhotoRec context with default settings,
  * discovers available disks, and prepares the system for file recovery.
  */
-ph_cli_context_t* init_photorec(int argc, char* argv[], char* recup_dir, char* device,
-                                int log_mode, const char* log_file);
+ph_cli_context_t* init_photorec(int argc, char* argv[], const char* recup_dir,
+                                const char* device, int log_mode, const char* log_file);
 
 /**
  * @brief Run PhotoRec file recovery
