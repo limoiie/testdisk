@@ -79,6 +79,10 @@
 #include "poptions.h"
 #include "psearchn.h"
 
+#ifdef HAVE_NCURSES
+#error "HAVE_NCURSES is defined, you must disable it for api mode"
+#endif
+
 /* Global variable for stopping recovery operations */
 int need_to_stop = 0;
 
