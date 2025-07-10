@@ -447,8 +447,6 @@ struct ph_cli_context
  * @brief Initialize PhotoRec context
  * @param argc Command line argument count
  * @param argv Command line arguments
- * @param recup_dir Recovery directory
- * @param device Device path (e.g., "/dev/sda" or image file path)
  * @param log_mode Log mode. 0: no log, 1: info, 2: debug
  * @param log_file Log file
  * @return Initialized PhotoRec context, or NULL on failure
@@ -456,8 +454,8 @@ struct ph_cli_context
  * This function initializes a new PhotoRec context with default settings,
  * discovers available disks, and prepares the system for file recovery.
  */
-ph_cli_context_t* init_photorec(int argc, char* argv[], const char* recup_dir,
-                                const char* device, int log_mode, const char* log_file);
+ph_cli_context_t* init_photorec(int argc, char* argv[], int log_mode,
+                                const char* log_file);
 
 /**
  * @brief Run PhotoRec file recovery
@@ -527,6 +525,28 @@ partition_t* change_part(ph_cli_context_t* ctx, int order, int mode_ext2,
 /* ============================================================================
  * CONFIGURATION FUNCTIONS - Recovery Options
  * ============================================================================ */
+
+/**
+ * @brief Add an image file to the context
+ * @param ctx PhotoRec context
+ * @param image_file Image file path
+ * @return Added disk structure, or NULL if not found
+ * 
+ * Adds an image file to the context, allowing PhotoRec to recover
+ * files from the image file instead of a physical disk.
+ */
+disk_t* add_image(ph_cli_context_t* ctx, const char* image_file);
+
+/**
+ * @brief Change recovery directory
+ * @param ctx PhotoRec context
+ * @param recup_dir Recovery directory
+ * 
+ * Sets the directory where PhotoRec will save recovered files.
+ * This function is used to configure the output directory for
+ * the recovery process.
+ */
+void change_recup_dir(ph_cli_context_t* ctx, const char* recup_dir);
 
 /**
  * @brief Change recovery options

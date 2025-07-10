@@ -149,7 +149,11 @@ static const arch_fnct_t* list_arch[] = {
 
 char *strdup(const char *src)
 {
-    size_t n = strlen(src);
+    if (src == NULL)
+    {
+        return NULL;
+    }
+    const size_t n = strlen(src);
     char *ret = MALLOC(n + 1);
     memcpy(ret, src, n + 1);
     return ret;
@@ -183,6 +187,35 @@ list_disk_t* init_list_disk(const ph_cli_context_t* ctx)
     return list_disk;
 }
 
+disk_t* add_image(ph_cli_context_t* ctx, const char* image_file)
+{
+    disk_t* disk_car =
+        file_test_availability(image_file, ctx->options.verbose, ctx->mode);
+    ctx->list_disk = insert_new_disk(ctx->list_disk, disk_car);
+    hd_update_all_geometry(ctx->list_disk, ctx->options.verbose); // Update geometry
+    for (list_disk_t* element_disk = ctx->list_disk;
+         element_disk != NULL;
+         element_disk = element_disk->next)
+    {
+        // Init cache for the new disk
+        if (element_disk->disk == disk_car)
+        {
+            element_disk->disk = new_diskcache(element_disk->disk, ctx->mode);
+            break;
+        }
+    }
+    return disk_car;
+}
+
+void change_recup_dir(ph_cli_context_t* ctx, const char* recup_dir)
+{
+    if (ctx->params.recup_dir != NULL)
+    {
+        free(ctx->params.recup_dir);
+    }
+    ctx->params.recup_dir = strdup(recup_dir);
+    ctx->params.dir_num = 0;
+}
 
 disk_t* change_disk(ph_cli_context_t* ctx, const char* device)
 {
@@ -355,9 +388,7 @@ int config_photorec(ph_cli_context_t* ctx, char* cmd)
                              &ctx->list_search_space);
 }
 
-ph_cli_context_t *init_photorec(int argc, char *argv[], const char *recup_dir,
-                                const char *device, const int log_mode,
-                                const char* log_file)
+ph_cli_context_t* init_photorec(int argc, char* argv[], const int log_mode, const char* log_file)
 {
 #if defined(ENABLE_DFXML)
     xml_set_command_line(argc, argv);
@@ -375,8 +406,8 @@ ph_cli_context_t *init_photorec(int argc, char *argv[], const char *recup_dir,
             .list_file_format = (file_enable_t*)array_file_enable
         },
         .params = {
-            .recup_dir = strdup(recup_dir),
-            .cmd_device = strdup(device),
+            .recup_dir = NULL,
+            .cmd_device = NULL,
             .cmd_run = NULL,
             .carve_free_space_only = 0,
             .disk = NULL
