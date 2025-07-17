@@ -646,7 +646,7 @@ int run_photorec(ph_cli_context_t* ctx)
     return 0;
 }
 
-void abort_photorec(ph_cli_context_t*)
+void abort_photorec(ph_cli_context_t* ctx)
 {
     need_to_stop = 1;
 }
