@@ -71,6 +71,20 @@ static int io_redir_pread(disk_t *disk_car, void *buffer, const unsigned int cou
   @*/
 static void io_redir_clean(disk_t *disk_car);
 
+/**
+ * @brief Adds a redirection for disk I/O operations.
+ *
+ * Installs a redirection so that reads from a specified offset and size are redirected
+ * to a new offset or memory buffer. If redirection is not already installed, it sets up
+ * the necessary structures and function pointers.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param org_offset Original offset to redirect from.
+ * @param size Size of the region to redirect.
+ * @param new_offset New offset to redirect to (if mem is NULL).
+ * @param mem Pointer to memory buffer to redirect to (if not NULL).
+ * @return 0 on success, 1 if the region is already redirected.
+ */
 int io_redir_add_redir(disk_t *disk_car, const uint64_t org_offset, const unsigned int size, const uint64_t new_offset, const void *mem)
 {
   if(disk_car->pread!=&io_redir_pread)
@@ -125,6 +139,16 @@ int io_redir_add_redir(disk_t *disk_car, const uint64_t org_offset, const unsign
   return 0;
 }
 
+/**
+ * @brief Removes a redirection for disk I/O operations.
+ *
+ * Removes the redirection for the specified original offset. If no more redirections remain,
+ * restores the original disk I/O function pointers and frees associated memory.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param org_offset Original offset whose redirection should be removed.
+ * @return 0 on success, 1 if the redirection was not found or not present.
+ */
 int io_redir_del_redir(disk_t *disk_car, uint64_t org_offset)
 {
   if(disk_car->pread!=&io_redir_pread)
@@ -164,6 +188,18 @@ int io_redir_del_redir(disk_t *disk_car, uint64_t org_offset)
   }
 }
 
+/**
+ * @brief Performs a redirected pread operation, handling both normal and redirected regions.
+ *
+ * Reads data from the disk, handling any installed redirections. If the requested region
+ * falls within a redirected region, reads from the new offset or memory buffer as appropriate.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param buffer Pointer to the buffer to read data into.
+ * @param count Number of bytes to read.
+ * @param offset Offset to read from.
+ * @return Number of bytes read, or a negative value on error.
+ */
 static int io_redir_pread(disk_t *disk_car, void *buffer, const unsigned int count, const uint64_t offset)
 {
   struct info_io_redir *data=(struct info_io_redir *)disk_car->data;
@@ -230,6 +266,13 @@ static int io_redir_pread(disk_t *disk_car, void *buffer, const unsigned int cou
   return count;
 }
 
+/**
+ * @brief Cleans up and removes all installed I/O redirections for the disk.
+ *
+ * Frees all memory associated with I/O redirections and restores the original disk structure.
+ *
+ * @param disk_car Pointer to the disk structure.
+ */
 static void io_redir_clean(disk_t *disk_car)
 {
   if(disk_car->data)

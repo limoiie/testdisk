@@ -50,6 +50,18 @@
 #include "log.h"
 #include "log_part.h"
 
+/**
+ * @brief Initializes the directory data structure for a given partition.
+ *
+ * Tries to detect the filesystem type and initializes the directory data accordingly.
+ *
+ * @param disk Pointer to the disk structure.
+ * @param partition Pointer to the partition structure.
+ * @param verbose Verbosity level for logging.
+ * @param expert Expert mode flag.
+ * @param dir_data Pointer to the directory data structure to initialize.
+ * @return Directory partition status code (DIR_PART_OK, DIR_PART_ENOIMP, etc.).
+ */
 static dir_partition_t dir_partition_init(disk_t *disk, const partition_t *partition, const int verbose, const int expert, dir_data_t *dir_data)
 {
   if(is_part_fat(partition))
@@ -94,6 +106,18 @@ static dir_partition_t dir_partition_init(disk_t *disk, const partition_t *parti
   }
 }
 
+/**
+ * @brief Lists the contents of a partition and handles directory operations.
+ *
+ * Depending on the filesystem type, lists files, handles recursive listing, copying, and displays errors.
+ *
+ * @param disk Pointer to the disk structure.
+ * @param partition Pointer to the partition structure.
+ * @param verbose Verbosity level for logging.
+ * @param expert Expert mode flag.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return Directory partition status code (DIR_PART_OK, DIR_PART_ENOIMP, etc.).
+ */
 dir_partition_t dir_partition(disk_t *disk, const partition_t *partition, const int verbose, const int expert, char **current_cmd)
 {
   dir_data_t dir_data;

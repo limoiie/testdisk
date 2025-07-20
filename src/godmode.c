@@ -67,6 +67,20 @@ extern const arch_fnct_t arch_xbox;
 #endif
 
 /* Optimization */
+/**
+ * @brief Converts a disk offset to CHS (Cylinder-Head-Sector) coordinates
+ * 
+ * This inline function performs optimized conversion from a linear disk offset
+ * to CHS coordinates based on the disk geometry. The conversion uses the
+ * disk's sector size, heads per cylinder, and sectors per head to calculate
+ * the cylinder, head, and sector values.
+ * 
+ * @param disk_car Pointer to the disk structure containing geometry information
+ * @param offset Linear offset in bytes from the start of the disk
+ * @param CHS Pointer to CHS_t structure where the converted coordinates will be stored
+ * 
+ * @note This is an inline function for performance optimization during partition scanning
+ */
 static inline void offset2CHS_inline(const disk_t *disk_car,const uint64_t offset, CHS_t*CHS)
 {
   uint64_t pos=offset/disk_car->sector_size;
@@ -76,12 +90,38 @@ static inline void offset2CHS_inline(const disk_t *disk_car,const uint64_t offse
   CHS->cylinder=pos/disk_car->geom.heads_per_cylinder;
 }
 
+/**
+ * @brief Converts CHS (Cylinder-Head-Sector) coordinates to a disk offset
+ * 
+ * This inline function performs optimized conversion from CHS coordinates
+ * to a linear disk offset based on the disk geometry. The conversion uses
+ * the disk's sector size, heads per cylinder, and sectors per head to calculate
+ * the linear offset in bytes.
+ * 
+ * @param disk_car Pointer to the disk structure containing geometry information
+ * @param CHS Pointer to CHS_t structure containing the cylinder, head, and sector values
+ * 
+ * @return Linear offset in bytes from the start of the disk
+ * 
+ * @note This is an inline function for performance optimization during partition scanning
+ */
 static inline uint64_t CHS2offset_inline(const disk_t *disk_car,const CHS_t*CHS)
 {
   return (((uint64_t)CHS->cylinder*disk_car->geom.heads_per_cylinder+CHS->head)*disk_car->geom.sectors_per_head+CHS->sector-1)*disk_car->sector_size;
 }
 /* Optimization end */
 
+/**
+ * @brief Gets the location boundary for partition alignment based on disk architecture
+ * 
+ * Determines the appropriate boundary size for partition alignment based on
+ * the disk architecture. Different architectures have different requirements
+ * for partition boundaries (e.g., Mac uses 4KB, Sun uses cylinder boundaries).
+ * 
+ * @param disk Pointer to the disk structure containing architecture information
+ * 
+ * @return Boundary size in bytes for partition alignment
+ */
 static unsigned int get_location_boundary(const disk_t *disk)
 {
   if(disk->arch==&arch_mac)
@@ -91,6 +131,20 @@ static unsigned int get_location_boundary(const disk_t *disk)
   return disk->sector_size;
 }
 
+/**
+ * @brief Calculates alignment boundary for a given offset based on disk geometry
+ * 
+ * Determines the appropriate alignment boundary for a partition at a given
+ * offset. The function considers various alignment factors including:
+ * - 1MB boundaries for large offsets
+ * - Cylinder boundaries based on disk geometry
+ * - Sector boundaries
+ * 
+ * @param offset The partition offset in bytes
+ * @param disk Pointer to the disk structure containing geometry information
+ * 
+ * @return Alignment boundary size in bytes
+ */
 static unsigned int align_structure_aux(const uint64_t offset, const disk_t *disk)
 {
   unsigned int tmp;
@@ -105,6 +159,18 @@ static unsigned int align_structure_aux(const uint64_t offset, const disk_t *dis
   return disk->sector_size;
 }
 
+/**
+ * @brief Aligns partition structure for i386 architecture
+ * 
+ * Performs partition alignment specific to i386 architecture. This function
+ * adjusts partition sizes to align with appropriate boundaries while avoiding
+ * overlaps with adjacent partitions. The alignment considers cylinder boundaries
+ * and sector alignment requirements.
+ * 
+ * @param list_part Pointer to the linked list of partitions to align
+ * @param disk Pointer to the disk structure containing geometry information
+ * @param align Alignment flag (0 for no alignment, non-zero for alignment)
+ */
 static void align_structure_i386(list_part_t *list_part, const disk_t *disk, const unsigned int align)
 {
   list_part_t *element;
@@ -133,6 +199,17 @@ static void align_structure_i386(list_part_t *list_part, const disk_t *disk, con
   }
 }
 
+/**
+ * @brief Aligns partition structure based on disk architecture
+ * 
+ * Performs partition alignment based on the disk architecture. For i386
+ * architecture, it calls the specific i386 alignment function. For other
+ * architectures, it uses the location boundary determined by get_location_boundary().
+ * 
+ * @param list_part Pointer to the linked list of partitions to align
+ * @param disk Pointer to the disk structure containing geometry information
+ * @param align Alignment flag (0 for no alignment, non-zero for alignment)
+ */
 static void align_structure(list_part_t *list_part, const disk_t *disk, const unsigned int align)
 {
   if(disk->arch==&arch_i386)
@@ -151,6 +228,16 @@ static void align_structure(list_part_t *list_part, const disk_t *disk, const un
   }
 }
 
+/**
+ * @brief Ensures only one partition is marked as bootable
+ * 
+ * This function ensures that only one partition in the list is marked as
+ * bootable (STATUS_PRIM_BOOT). If the specified boot partition is already
+ * bootable, it removes the bootable status from all other partitions.
+ * 
+ * @param list_part Pointer to the linked list of all partitions
+ * @param part_boot Pointer to the partition that should be the only bootable one
+ */
 void only_one_bootable( list_part_t *list_part, const list_part_t *part_boot)
 {
   list_part_t *element;
@@ -163,6 +250,19 @@ void only_one_bootable( list_part_t *list_part, const list_part_t *part_boot)
 }
 
 #ifdef HAVE_NCURSES
+/**
+ * @brief Displays partition bad interface using ncurses
+ * 
+ * Provides an interactive ncurses interface for displaying partitions that
+ * extend beyond the disk limits. The interface shows disk information,
+ * warning messages about disk size issues, and allows the user to navigate
+ * through the list of problematic partitions.
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param list_part Pointer to the linked list of partitions that extend beyond disk limits
+ * 
+ * @return 0 on success, 1 if no partitions to display
+ */
 static int interface_part_bad_ncurses(disk_t *disk_car, list_part_t *list_part)
 {
   int quit=0;
@@ -298,6 +398,18 @@ static int interface_part_bad_ncurses(disk_t *disk_car, list_part_t *list_part)
 }
 #endif
 
+/**
+ * @brief Logs partition bad information to log file
+ * 
+ * Logs detailed information about partitions that extend beyond the disk limits
+ * to the log file. This includes disk information, warning messages about
+ * disk size issues, and details about each problematic partition.
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param list_part Pointer to the linked list of partitions that extend beyond disk limits
+ * 
+ * @return 0 on success, 1 if no partitions to log
+ */
 static int interface_part_bad_log(disk_t *disk_car, list_part_t *list_part)
 {
   uint64_t disk_size=disk_car->disk_size;
@@ -342,6 +454,17 @@ static int interface_part_bad_log(disk_t *disk_car, list_part_t *list_part)
 }
 
 #ifdef HAVE_NCURSES
+/**
+ * @brief Displays geometry warning using ncurses interface
+ * 
+ * Shows a warning message about incorrect disk geometry settings using
+ * the ncurses interface. The warning includes information about the current
+ * and recommended number of heads per cylinder, and suggests using the
+ * Geometry menu to correct the settings.
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param recommanded_heads_per_cylinder The recommended number of heads per cylinder
+ */
 static void warning_geometry_ncurses(disk_t *disk_car, const unsigned int recommanded_heads_per_cylinder)
 {
   aff_copy(stdscr);
@@ -369,6 +492,17 @@ static void warning_geometry_ncurses(disk_t *disk_car, const unsigned int recomm
 }
 #endif
 
+/**
+ * @brief Inserts a hint offset into a sorted array
+ * 
+ * Inserts a new offset hint into a sorted array of offsets. The function
+ * maintains the array in ascending order and avoids duplicates. If the
+ * array is full, the new hint is ignored.
+ * 
+ * @param tab Array of offset hints (sorted in ascending order)
+ * @param offset The new offset hint to insert
+ * @param tab_nbr Pointer to the number of elements currently in the array
+ */
 static void hint_insert(uint64_t *tab, const uint64_t offset, unsigned int *tab_nbr)
 {
   if(*tab_nbr<MAX_SEARCH_LOCATION-1)
@@ -384,6 +518,18 @@ static void hint_insert(uint64_t *tab, const uint64_t offset, unsigned int *tab_
   }
 }
 
+/**
+ * @brief Adds search hints based on disk architecture
+ * 
+ * Adds specific search hints to the offset array based on the disk architecture.
+ * Different architectures have different common partition locations and backup
+ * sector positions. This function adds architecture-specific hints to improve
+ * partition discovery efficiency.
+ * 
+ * @param disk Pointer to the disk structure containing architecture information
+ * @param try_offset Array to store the search offset hints
+ * @param try_offset_nbr Pointer to the number of hints in the array
+ */
 static void search_add_hints(const disk_t *disk, uint64_t *try_offset, unsigned int *try_offset_nbr)
 {
   if(disk->arch==&arch_i386)
@@ -470,6 +616,22 @@ static void search_add_hints(const disk_t *disk, uint64_t *try_offset, unsigned 
    - MinPartOffset: 0x800
    - Geometry: don't care
 */
+/**
+ * @brief Gets the minimum location for partition search based on disk architecture
+ * 
+ * Returns the minimum offset where partitions can be located based on the
+ * disk architecture. Different architectures have different requirements:
+ * - GPT: 2 sectors + 16384 bytes
+ * - i386/Humax: 1 sector
+ * - Mac: 4096 bytes
+ * - Sun: cylinder boundary
+ * - XBox: 0x800 bytes
+ * - None: 0 bytes
+ * 
+ * @param disk Pointer to the disk structure containing architecture information
+ * 
+ * @return Minimum offset in bytes where partitions can be located
+ */
 static uint64_t get_min_location(const disk_t *disk)
 {
   if(disk->arch==&arch_gpt)
@@ -486,6 +648,20 @@ static uint64_t get_min_location(const disk_t *disk)
   return 0;
 }
 
+/**
+ * @brief Searches for NTFS partitions from backup boot sectors
+ * 
+ * Searches for NTFS partitions by examining backup boot sectors. This function
+ * looks for NTFS partitions that have backup boot sectors and tries to recover
+ * them by reading from various offset positions relative to the main partition.
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param list_part Pointer to the linked list of partitions to search
+ * @param verbose Verbosity level for logging
+ * @param dump_ind Dump index for detailed output
+ * @param min_location Minimum location where partitions can be found
+ * @param search_location_max Maximum location to search for partitions
+ */
 static void search_NTFS_from_backup(disk_t *disk_car, list_part_t *list_part, const int verbose, const int dump_ind, const uint64_t min_location, const uint64_t search_location_max)
 {
   unsigned char *buffer_disk;
@@ -532,6 +708,48 @@ static void search_NTFS_from_backup(disk_t *disk_car, list_part_t *list_part, co
 
 typedef enum { INDSTOP_CONTINUE=0, INDSTOP_STOP=1, INDSTOP_SKIP=2, INDSTOP_QUIT=3, INDSTOP_PLUS=4 } indstop_t;
 
+/**
+ * @brief Searches for partitions on a disk using various detection methods
+ * 
+ * This is the main partition discovery function that performs a comprehensive
+ * scan of the disk to find partitions. It uses multiple detection strategies:
+ * 
+ * 1. **Known partition locations**: Searches at offsets where partitions were
+ *    previously found
+ * 2. **Architecture-specific hints**: Uses common partition locations based on
+ *    disk architecture (i386, GPT, Mac, etc.)
+ * 3. **Systematic sector scanning**: Scans sectors at regular intervals
+ * 4. **Backup sector detection**: Looks for backup boot sectors and superblocks
+ * 5. **File system signatures**: Detects various file systems (FAT, NTFS, ext2, etc.)
+ * 6. **RAID detection**: Identifies Linux software RAID configurations
+ * 
+ * The function supports different search modes:
+ * - **Fast mode**: Skips certain checks for speed
+ * - **Normal mode**: Performs comprehensive checks
+ * - **Interactive mode**: Allows user to stop/skip during search
+ * 
+ * For each potential partition location, it tries multiple detection methods:
+ * - Linux MD RAID detection
+ * - FAT backup boot sector
+ * - exFAT backup boot sector  
+ * - NTFS backup boot sector
+ * - HFS backup boot sector
+ * - ext2 backup superblock
+ * - Various partition table formats (type 0, 1, 2, 8, 16, 64, 128, 2048)
+ * 
+ * @param disk_car Pointer to the disk structure to search
+ * @param list_part_org Original list of known partitions (used for hints)
+ * @param verbose Verbosity level for logging (0=minimal, higher=more detailed)
+ * @param dump_ind Dump index for detailed output
+ * @param fast_mode Fast mode flag (0=comprehensive, 1=fast, 2=very fast)
+ * @param current_cmd Pointer to current command string (for user interaction)
+ * 
+ * @return Pointer to linked list of discovered partitions, or NULL if none found
+ * 
+ * @note This function is the core of TestDisk's partition recovery capabilities
+ * @note The function can be interrupted by user input during interactive mode
+ * @note Discovered partitions are marked as STATUS_DELETED initially
+ */
 static list_part_t *search_part(disk_t *disk_car, const list_part_t *list_part_org, const int verbose, const int dump_ind, const int fast_mode, char **current_cmd)
 {
   unsigned char *buffer_disk;
@@ -993,6 +1211,23 @@ static list_part_t *search_part(disk_t *disk_car, const list_part_t *list_part_o
 }
 
 #ifdef HAVE_NCURSES
+/**
+ * @brief Interactive interface for setting MBR partition order for i386 architecture
+ * 
+ * Provides an interactive ncurses interface for users to set the order of
+ * primary partitions in the Master Boot Record (MBR). This is important for
+ * i386 architecture where the MBR can contain up to 4 primary partitions,
+ * and the order affects how the system boots and recognizes partitions.
+ * 
+ * The interface displays all primary partitions and allows the user to:
+ * - Navigate through partitions using arrow keys
+ * - Set partition order (1-4) using number keys or +/- keys
+ * - View current order status (good/bad)
+ * - Confirm changes when order is valid
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param list_part Pointer to the linked list of partitions to order
+ */
 static void ask_mbr_order_i386(disk_t *disk_car,list_part_t *list_part)
 {
   partition_t *table[4];
@@ -1107,6 +1342,18 @@ static void ask_mbr_order_i386(disk_t *disk_car,list_part_t *list_part)
 }
 #endif
 
+/**
+ * @brief Reduces partition structure by removing deleted partitions
+ * 
+ * Creates a new partition list containing only non-deleted partitions
+ * from the original list. This function is used to filter out partitions
+ * that have been marked as deleted (STATUS_DELETED) and create a clean
+ * list for further processing.
+ * 
+ * @param list_part_org Pointer to the original linked list of partitions
+ * 
+ * @return Pointer to a new linked list containing only non-deleted partitions
+ */
 static list_part_t *reduce_structure(const list_part_t *list_part_org)
 {
 
@@ -1127,6 +1374,42 @@ static list_part_t *reduce_structure(const list_part_t *list_part_org)
   return list_part;
 }
 
+/**
+ * @brief Adds extended partition for i386 architecture
+ * 
+ * Creates an extended partition that contains all logical partitions for
+ * i386 architecture. This function analyzes the partition list to determine
+ * the optimal boundaries for the extended partition.
+ * 
+ * The function handles two modes:
+ * - **Minimal mode** (max_ext=0): Creates the smallest possible extended
+ *   partition that contains all logical partitions
+ * - **Maximal mode** (max_ext=1): Creates the largest possible extended
+ *   partition that fits between adjacent primary partitions
+ * 
+ * The extended partition boundaries are calculated based on:
+ * - The start of the first logical partition (minus one sector)
+ * - The end of the last logical partition (minus one sector)
+ * - Alignment requirements (cylinder boundaries, 1MB boundaries)
+ * - Available space between primary partitions
+ * 
+ * The function also handles edge cases:
+ * - When logical partitions are at the beginning of the disk
+ * - When logical partitions are at the end of the disk
+ * - When there are adjacent primary partitions
+ * - When the partition list is not properly sorted
+ * 
+ * @param disk Pointer to the disk structure containing geometry information
+ * @param list_part Pointer to the linked list of partitions (must be sorted)
+ * @param max_ext Flag for maximal vs minimal extended partition (0=min, 1=max)
+ * @param verbose Verbosity level for logging
+ * 
+ * @return Pointer to the updated partition list with the new extended partition
+ * 
+ * @note The input partition list must be sorted by offset
+ * @note Existing extended partitions are removed before creating a new one
+ * @note The function modifies the partition list in-place
+ */
 static list_part_t *add_ext_part_i386(const disk_t *disk, list_part_t *list_part, const int max_ext, const int verbose)
 {
   /* list_part need to be sorted! */
@@ -1299,6 +1582,23 @@ static list_part_t *add_ext_part_i386(const disk_t *disk, list_part_t *list_part
   return list_part;
 }
 
+/**
+ * @brief Uses backup boot sectors to fix partition information
+ * 
+ * Iterates through the partition list and uses backup boot sectors to
+ * fix partition information for supported file systems. This function
+ * calls specific boot sector recovery functions based on the partition
+ * type (FAT32, NTFS, HFS, etc.).
+ * 
+ * @param disk_car Pointer to the disk structure
+ * @param list_part Pointer to the linked list of partitions
+ * @param verbose Verbosity level for logging
+ * @param dump_ind Dump index for detailed output
+ * @param expert Expert mode flag
+ * @param current_cmd Pointer to current command string
+ * 
+ * @return 0 on success
+ */
 static int use_backup(disk_t *disk_car, const list_part_t *list_part, const int verbose,const int dump_ind, const unsigned int expert, char**current_cmd)
 {
   const list_part_t *element;
@@ -1333,6 +1633,22 @@ static int use_backup(disk_t *disk_car, const list_part_t *list_part, const int 
   return 0;
 }
 
+/**
+ * @brief Warns about incorrect disk geometry settings
+ * 
+ * Checks if the current disk geometry settings are correct by comparing
+ * them with the geometry inferred from the partition list. If there's
+ * a mismatch, it displays a warning message suggesting the user to
+ * change the geometry settings.
+ * 
+ * This function is particularly important for i386 and Sun architectures
+ * where correct geometry is crucial for successful partition recovery.
+ * 
+ * @param list_part Pointer to the linked list of partitions
+ * @param disk Pointer to the disk structure
+ * @param verbose Verbosity level for logging
+ * @param current_cmd Pointer to current command string
+ */
 static void warning_geometry(const list_part_t *list_part, disk_t *disk, const int verbose, char **current_cmd)
 {
   if(list_part!=NULL && (disk->arch==&arch_i386 || disk->arch==&arch_sun))
@@ -1359,6 +1675,38 @@ static void warning_geometry(const list_part_t *list_part, disk_t *disk, const i
   @ requires \valid(menu);
   @ requires \valid(fast_mode);
   @*/
+/**
+ * @brief Handles the write partition table interface and operations
+ * 
+ * This function manages the complete workflow for writing partition tables.
+ * It performs the following steps:
+ * 
+ * 1. **Structure reduction**: Removes deleted partitions from the list
+ * 2. **Partition sorting**: Sorts partitions by offset
+ * 3. **Extended partition creation**: Creates extended partitions for i386
+ * 4. **Partition ordering**: Initializes partition order based on architecture
+ * 5. **User interaction**: Handles MBR order setting if requested
+ * 6. **Write interface**: Provides interface for writing/simulating partition table
+ * 7. **Backup usage**: Uses backup boot sectors to fix partition information
+ * 
+ * The function supports multiple write modes:
+ * - **Simulation**: Tests the write operation without actually writing
+ * - **Write**: Actually writes the partition table to disk
+ * - **Fast mode**: Adjusts search depth based on user preference
+ * - **Extended mode**: Toggles between minimal and maximal extended partitions
+ * 
+ * @param list_part_org Pointer to the original partition list
+ * @param disk_car Pointer to the disk structure
+ * @param verbose Verbosity level for logging
+ * @param dump_ind Dump index for detailed output
+ * @param ask_part_order Flag to ask for partition order
+ * @param expert Expert mode flag
+ * @param current_cmd Pointer to current command string
+ * @param menu Pointer to menu state
+ * @param fast_mode Pointer to fast mode setting
+ * 
+ * @return Interface result code indicating the action taken
+ */
 static int ask_write_partition_table(const list_part_t *list_part_org, disk_t *disk_car, const int verbose, const int dump_ind, const int ask_part_order, const unsigned int expert, char **current_cmd, unsigned int *menu, int *fast_mode)
 {
   int res_interface_write;
@@ -1475,6 +1823,57 @@ static int ask_write_partition_table(const list_part_t *list_part_org, disk_t *d
   return res_interface_write;
 }
 
+/**
+ * @brief Main interface for partition recovery operations
+ * 
+ * This is the primary entry point for TestDisk's partition recovery functionality.
+ * It orchestrates the complete partition recovery workflow including search,
+ * analysis, structure management, and write operations.
+ * 
+ * The function performs the following major operations:
+ * 
+ * 1. **Partition Search**: Calls search_part() to discover partitions using
+ *    various detection methods (signatures, backup sectors, etc.)
+ * 
+ * 2. **Geometry Validation**: Checks disk geometry settings and warns about
+ *    potential issues that could affect recovery
+ * 
+ * 3. **Structure Alignment**: Aligns partition boundaries according to disk
+ *    architecture requirements
+ * 
+ * 4. **Structure Initialization**: Initializes partition structure based on
+ *    the disk architecture
+ * 
+ * 5. **User Interface**: Provides interactive interface for:
+ *    - Reviewing discovered partitions
+ *    - Modifying partition structure
+ *    - Setting partition order (for i386)
+ *    - Writing partition table
+ * 
+ * 6. **Write Operations**: Handles actual writing of partition table to disk
+ *    with confirmation and backup operations
+ * 
+ * The function supports multiple modes:
+ * - **Interactive mode**: Full user interface with ncurses
+ * - **Command-line mode**: Automated operation based on parameters
+ * - **Fast mode**: Optimized for speed over thoroughness
+ * - **Expert mode**: Advanced options and detailed logging
+ * 
+ * @param disk_car Pointer to the disk structure to recover partitions from
+ * @param list_part_org Pointer to the original list of known partitions
+ * @param verbose Verbosity level for logging (0=minimal, higher=more detailed)
+ * @param dump_ind Dump index for detailed output
+ * @param align Alignment flag for partition boundaries
+ * @param ask_part_order Flag to prompt for partition order setting
+ * @param expert Expert mode flag for advanced options
+ * @param current_cmd Pointer to current command string for user interaction
+ * 
+ * @return 0 on successful completion
+ * 
+ * @note This function is the main orchestrator for TestDisk's partition recovery
+ * @note The function can be called multiple times for iterative recovery
+ * @note User can interrupt the process at various points during execution
+ */
 int interface_recovery(disk_t *disk_car, const list_part_t *list_part_org, const int verbose, const int dump_ind, const int align, const int ask_part_order, const unsigned int expert, char **current_cmd)
 {
   int res_interface_write;

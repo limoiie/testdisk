@@ -51,6 +51,18 @@
 
 extern const arch_fnct_t arch_none;
 
+/**
+ * @brief Lists all partitions on the given disk and prints their information.
+ *
+ * This function analyzes the disk, reads the partition table, and displays
+ * all partitions with their status and information. Optionally creates a backup
+ * of the partition structure.
+ *
+ * @param disk Pointer to the disk structure.
+ * @param verbose Verbosity level for logging.
+ * @param saveheader Flag to indicate if partition headers should be saved.
+ * @param backup Flag to indicate if a backup should be created.
+ */
 void interface_list(disk_t *disk, const int verbose, const int saveheader, const int backup)
 {
   list_part_t *list_part;
@@ -77,6 +89,19 @@ void interface_list(disk_t *disk, const int verbose, const int saveheader, const
   part_free_list(list_part);
 }
 
+/**
+ * @brief Handles CLI-based structure selection and directory listing for a partition.
+ *
+ * Processes command-line commands for listing partition contents and navigating
+ * through the partition structure. Supports the "list" command to display
+ * directory contents of selected partitions.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param list_part Pointer to the linked list of partitions.
+ * @param verbose Verbosity level for logging.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return The (possibly updated) list of partitions.
+ */
 static list_part_t *ask_structure_cli(disk_t *disk_car,list_part_t *list_part, const int verbose, char **current_cmd)
 {
   const list_part_t *pos=list_part;
@@ -104,7 +129,18 @@ static list_part_t *ask_structure_cli(disk_t *disk_car,list_part_t *list_part, c
 }
 
 #ifdef HAVE_NCURSES
-#define INTER_STRUCTURE	(LINES-12)
+/**
+ * @brief Provides an ncurses-based interface for selecting and modifying partition structure.
+ *
+ * Allows the user to navigate through partitions, change partition types, list files,
+ * add new partitions, and modify partition characteristics interactively. Supports
+ * keyboard navigation with arrow keys and various commands.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param list_part Pointer to the linked list of partitions.
+ * @param verbose Verbosity level for logging.
+ * @return The (possibly updated) list of partitions.
+ */
 static list_part_t *ask_structure_ncurses(disk_t *disk_car,list_part_t *list_part, const int verbose)
 {
   int offset=0;
@@ -417,6 +453,18 @@ static list_part_t *ask_structure_ncurses(disk_t *disk_car,list_part_t *list_par
 }
 #endif
 
+/**
+ * @brief Main entry point for structure selection, dispatching to CLI or ncurses interface as appropriate.
+ *
+ * Determines whether to use command-line or ncurses interface based on the current_cmd parameter.
+ * If current_cmd is not NULL, uses CLI interface; otherwise uses ncurses if available.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param list_part Pointer to the linked list of partitions.
+ * @param verbose Verbosity level for logging.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return The (possibly updated) list of partitions.
+ */
 list_part_t *ask_structure(disk_t *disk_car,list_part_t *list_part, const int verbose, char **current_cmd)
 {
   if(*current_cmd!=NULL)

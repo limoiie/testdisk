@@ -52,6 +52,19 @@ extern const arch_fnct_t arch_none;
 #define INTER_DISK_Y	8
 
 
+/**
+ * @brief Handles the command-line interface for disk operations menu.
+ *
+ * This function processes commands for analyzing, changing geometry, advanced options,
+ * deleting, and writing MBR code for the disk. It loops until a valid command is processed.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param verbose Verbosity level for logging.
+ * @param dump_ind Dump index for detailed output.
+ * @param saveheader Flag to indicate if partition headers should be saved.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return 0 when a valid command is processed.
+ */
 static int menu_disk_cli(disk_t *disk_car, const int verbose,int dump_ind, const int saveheader, char **current_cmd)
 {
   int align=1;
@@ -95,6 +108,19 @@ static int menu_disk_cli(disk_t *disk_car, const int verbose,int dump_ind, const
 }
 
 #ifdef HAVE_NCURSES
+/**
+ * @brief Provides an ncurses-based interface for disk operations menu.
+ *
+ * Displays disk information and allows the user to select actions such as analyze, advanced options,
+ * geometry, options, writing MBR code, deleting partition table, and editor.
+ *
+ * @param disk Pointer to the disk structure.
+ * @param verbose Verbosity level for logging.
+ * @param dump_ind Dump index for detailed output.
+ * @param saveheader Flag to indicate if partition headers should be saved.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return 0 when the user chooses to quit the menu.
+ */
 static int menu_disk_ncurses(disk_t *disk, const int verbose,int dump_ind, const int saveheader, char **current_cmd)
 {
   int align=1;
@@ -189,6 +215,16 @@ static int menu_disk_ncurses(disk_t *disk, const int verbose,int dump_ind, const
 }
 #endif
 
+/**
+ * @brief Main entry point for disk operations menu, dispatching to CLI or ncurses interface as appropriate.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param verbose Verbosity level for logging.
+ * @param dump_ind Dump index for detailed output.
+ * @param saveheader Flag to indicate if partition headers should be saved.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @return 0 when the user chooses to quit the menu.
+ */
 int menu_disk(disk_t *disk_car, const int verbose,int dump_ind, const int saveheader, char **current_cmd)
 {
   if(*current_cmd!=NULL)

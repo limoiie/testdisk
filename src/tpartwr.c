@@ -37,6 +37,22 @@
 #include "log.h"
 #include "tpartwr.h"
 
+/**
+ * @brief Provides the user interface for writing the partition table to disk.
+ *
+ * This function displays the available options for writing the partition structure,
+ * including deeper search, maximizing/minimizing extended partitions, and writing
+ * the partition table. It handles both command-line and ncurses-based interfaces.
+ *
+ * @param disk_car Pointer to the disk structure.
+ * @param list_part Pointer to the linked list of partitions.
+ * @param can_search_deeper Flag indicating if deeper search is allowed.
+ * @param can_ask_minmax_ext Flag indicating if min/max extended partition can be toggled.
+ * @param no_confirm Pointer to an int that will be set if confirmation is not required.
+ * @param current_cmd Pointer to the current command string (for CLI automation).
+ * @param menu Pointer to the menu state variable.
+ * @return The command character selected by the user (e.g., 'W' for write, 'S' for search).
+ */
 int interface_write(disk_t *disk_car,list_part_t *list_part,const int can_search_deeper, const int can_ask_minmax_ext, int *no_confirm, char **current_cmd, unsigned int *menu)
 {
   list_part_t *parts;
