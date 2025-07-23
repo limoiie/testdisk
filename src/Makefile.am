@@ -434,11 +434,16 @@ QT_TS = \
   lang/qphotorec.zh_TW.ts
 
 # Library source definitions (excluding UI components and main functions)
-libphotorec_core_C	= photorec_api.c photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c sessionp.c dfxml.c partgptro.c fat_unformat.c phcli.c psearchn.c phbf.c pdisksel.c phbs.c poptions.c pbanner.c intrfn.c fat_cluster.c pblocksize.c phnc.c
+testdisk_ncurses_C_X	= adv.c chgtypen.c dimage.c dirn.c dirpart.c diskacc.c diskcapa.c edit.c ext2_sb.c ext2_sbn.c fat1x.c fat32.c fat_adv.c fatn.c godmode.c intrface.c io_redir.c ntfs_adv.c ntfs_fix.c ntfs_udl.c tanalyse.c tbanner.c tdelete.c tdiskop.c tdisksel.c texfat.c thfs.c tload.c tlog.c tmbrcode.c tntfs.c toptions.c tpartwr.c
+photorec_ncurses_C_X	= addpartn.c askloc.c chgarchn.c chgtypen.c fat_cluster.c fat_unformat.c geometryn.c hiddenn.c intrfn.c nodisk.c parti386n.c partgptn.c partmacn.c partsunn.c partxboxn.c pbanner.c pblocksize.c pdiskseln.c pfree_whole.c phbf.c phbs.c phcli.c phnc.c phrecn.c ppartseln.c psearchn.c
+photorec_C_X		= photorec.c phcfg.c addpart.c chgarch.c chgtype.c dir.c exfatp.c ext2grp.c ext2_dir.c ext2p.c fat_dir.c fatp.c file_found.c geometry.c ntfs_dir.c ntfsp.c pdisksel.c poptions.c sessionp.c dfxml.c
 
-libphotorec_core_H	= phcfg.h addpart.h chgarch.h chgtype.h dfxml.h dir_common.h dir.h exfatp.h ext2grp.h ext2p.h ext2_dir.h ext2_inc.h fat_dir.h fatp.h file_found.h geometry.h memmem.h ntfs_dir.h ntfsp.h ntfs_inc.h photorec_check_header.h psearch.h sessionp.h fat_cluster.h fat_unformat.h
+# Filter out files that are already in photorec_ncurses_C_X to avoid duplicates
 
-libphotorec_C_SOURCES	= $(libphotorec_core_C) $(file_C) $(base_C) $(fs_C) suspend_no.c
+# Core library files (excluding duplicates that are already in photorec_C)
+libtestdisk_core_C	= testdisk_api.c exfat_dir.c partgptw.c rfs_dir.c next.c
+
+libtestdisk_C_SOURCES	= $(libtestdisk_core_C) $(photorec_C_X) $(file_C) $(base_C) $(fs_C) $(testdisk_ncurses_C_X) $(photorec_ncurses_C_X) suspend_no.c
 
 photorec_C_SOURCES	= $(photorec_C) $(file_C) $(base_C) $(fs_C) $(photorec_ncurses_C) suspend_no.c
 photorec_H_SOURCES	= $(photorec_H) $(file_H) $(base_H) $(fs_H) $(photorec_ncurses_H) $(ICON_PHOTOREC)
@@ -463,22 +468,22 @@ fuzzerfidentify_H_SOURCES	= $(fidentify_H_SOURCES)
 fuzzerfidentify_SOURCES		= $(fuzzerfidentify_C_SOURCES) $(fuzzerfidentify_H_SOURCES)
 
 # Object files for library targets  
-libphotorec_OBJECTS		= $(libphotorec_C_SOURCES:.c=.o)
-libphotorec_shared_OBJECTS	= $(libphotorec_C_SOURCES:.c=.shared.o)
+libtestdisk_OBJECTS		= $(libtestdisk_C_SOURCES:.c=.o)
+libtestdisk_shared_OBJECTS	= $(libtestdisk_C_SOURCES:.c=.shared.o)
 
 # Shared library specific CFLAGS for position-independent code
-SHARED_CFLAGS			= $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) -fPIC -DLIBPHOTOREC_SHARED
+SHARED_CFLAGS			= $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(CFLAGS) -fPIC -Dlibtestdisk_SHARED
 
 # Headers to install
-include_HEADERS			= photorec_api.h
+include_HEADERS			= testdisk_api.h
 
 # Additional distribution files  
-EXTRA_DIST			= photorec_api.h
+EXTRA_DIST			= testdisk_api.h
 
 QT_QM=$(QT_TS:.ts=.qm)
 SECONDARY: $(QT_QM)
 
-CLEANFILES = $(nodist_qphotorec_SOURCES) libphotorec.so libphotorec.so.* *.dylib libphotorec_static.a *.shared.o
+CLEANFILES = $(nodist_qphotorec_SOURCES) libtestdisk.so libtestdisk.so.* *.dylib libtestdisk_static.a *.shared.o
 DISTCLEANFILES = *~ core *.a *.so *.so.* *.dylib
 
 small: $(sbin_PROGRAMS) $(bin_PROGRAMS)
@@ -491,46 +496,46 @@ extras: $(EXTRA_PROGRAMS)
 	$(CC) $(SHARED_CFLAGS) -c $< -o $@
 
 # Static library target
-libphotorec_static.a: $(libphotorec_OBJECTS)
-	$(AR) rcs $@ $(libphotorec_OBJECTS)
+libtestdisk_static.a: $(libtestdisk_OBJECTS)
+	$(AR) rcs $@ $(libtestdisk_OBJECTS)
 
 # Shared library target (macOS compatible)
-libphotorec.so: $(libphotorec_shared_OBJECTS)
+libtestdisk.so: $(libtestdisk_shared_OBJECTS)
 	if [ "`uname`" = "Darwin" ]; then \
-		$(CC) -dynamiclib -Wl,-install_name,libphotorec.1.dylib -o libphotorec.1.0.0.dylib $(libphotorec_shared_OBJECTS) -lncurses -lz; \
-		ln -sf libphotorec.1.0.0.dylib libphotorec.1.dylib; \
-		ln -sf libphotorec.1.0.0.dylib libphotorec.dylib; \
-		ln -sf libphotorec.1.0.0.dylib libphotorec.so.1.0.0; \
-		ln -sf libphotorec.1.0.0.dylib libphotorec.so.1; \
-		ln -sf libphotorec.1.0.0.dylib libphotorec.so; \
+		$(CC) -dynamiclib -Wl,-install_name,libtestdisk.1.dylib -o libtestdisk.1.0.0.dylib $(libtestdisk_shared_OBJECTS) -lncurses -lz; \
+		ln -sf libtestdisk.1.0.0.dylib libtestdisk.1.dylib; \
+		ln -sf libtestdisk.1.0.0.dylib libtestdisk.dylib; \
+		ln -sf libtestdisk.1.0.0.dylib libtestdisk.so.1.0.0; \
+		ln -sf libtestdisk.1.0.0.dylib libtestdisk.so.1; \
+		ln -sf libtestdisk.1.0.0.dylib libtestdisk.so; \
 	else \
-		$(CC) -shared -Wl,-soname,libphotorec.so.1 -o libphotorec.so.1.0.0 $(libphotorec_shared_OBJECTS) -lncurses -lz; \
-		ln -sf libphotorec.so.1.0.0 libphotorec.so.1; \
-		ln -sf libphotorec.so.1.0.0 libphotorec.so; \
+		$(CC) -shared -Wl,-soname,libtestdisk.so.1 -o libtestdisk.so.1.0.0 $(libtestdisk_shared_OBJECTS) -lncurses -lz; \
+		ln -sf libtestdisk.so.1.0.0 libtestdisk.so.1; \
+		ln -sf libtestdisk.so.1.0.0 libtestdisk.so; \
 	fi
 
 # Main library targets
-library: libphotorec.so libphotorec_static.a
+library: libtestdisk.so libtestdisk_static.a
 
-library-static: libphotorec_static.a
+library-static: libtestdisk_static.a
 
-library-shared: libphotorec.so
+library-shared: libtestdisk.so
 
 # Install both shared and static libraries with headers
-library-install: library photorec_api.h
+library-install: library testdisk_api.h
 	$(mkinstalldirs) $(DESTDIR)$(libdir)
 	$(mkinstalldirs) $(DESTDIR)$(includedir)
-	$(INSTALL_DATA) libphotorec_static.a $(DESTDIR)$(libdir)/libphotorec.a
+	$(INSTALL_DATA) libtestdisk_static.a $(DESTDIR)$(libdir)/libtestdisk.a
 	if [ "`uname`" = "Darwin" ]; then \
-		$(INSTALL_PROGRAM) libphotorec.1.0.0.dylib $(DESTDIR)$(libdir)/libphotorec.1.0.0.dylib; \
-		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.1.0.0.dylib libphotorec.1.dylib; \
-		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.1.0.0.dylib libphotorec.dylib; \
+		$(INSTALL_PROGRAM) libtestdisk.1.0.0.dylib $(DESTDIR)$(libdir)/libtestdisk.1.0.0.dylib; \
+		cd $(DESTDIR)$(libdir) && ln -sf libtestdisk.1.0.0.dylib libtestdisk.1.dylib; \
+		cd $(DESTDIR)$(libdir) && ln -sf libtestdisk.1.0.0.dylib libtestdisk.dylib; \
 	else \
-		$(INSTALL_PROGRAM) libphotorec.so.1.0.0 $(DESTDIR)$(libdir)/libphotorec.so.1.0.0; \
-		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.so.1.0.0 libphotorec.so.1; \
-		cd $(DESTDIR)$(libdir) && ln -sf libphotorec.so.1.0.0 libphotorec.so; \
+		$(INSTALL_PROGRAM) libtestdisk.so.1.0.0 $(DESTDIR)$(libdir)/libtestdisk.so.1.0.0; \
+		cd $(DESTDIR)$(libdir) && ln -sf libtestdisk.so.1.0.0 libtestdisk.so.1; \
+		cd $(DESTDIR)$(libdir) && ln -sf libtestdisk.so.1.0.0 libtestdisk.so; \
 	fi
-	$(INSTALL_DATA) photorec_api.h $(DESTDIR)$(includedir)/photorec_api.h
+	$(INSTALL_DATA) testdisk_api.h $(DESTDIR)$(includedir)/testdisk_api.h
 
 frama-c-%: session_%.framac
 	frama-c-gui -load $^

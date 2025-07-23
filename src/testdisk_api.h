@@ -1,8 +1,8 @@
 /*
- * PhotoRec API - Context-Based File Recovery Library Interface
+ * TestDisk API - Context-Based File Recovery Library Interface
  * 
  * This header provides a context-based API for implementing custom interfaces
- * to PhotoRec's file recovery functionality while preserving all core
+ * to TestDisk's file recovery functionality while preserving all core
  * recovery capabilities.
  * 
  * Copyright (C) 1998-2024 Christophe GRENIER <grenier@cgsecurity.org>
@@ -13,8 +13,8 @@
  * (at your option) any later version.
  */
 
-#ifndef _PHOTOREC_API_H
-#define _PHOTOREC_API_H
+#ifndef _TESTDISK_API_H
+#define _TESTDISK_API_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,9 +30,9 @@ extern "C" {
 
 #define MAX_FILES_PER_DIR           500
 #define DEFAULT_RECUP_DIR          "recup_dir"
-#define PHOTOREC_MAX_FILE_SIZE     (((uint64_t)1<<41)-1)
-#define PHOTOREC_MAX_BLOCKSIZE     (32*1024*1024)
-#define PH_INVALID_OFFSET          0xffffffffffffffff
+#define TESTDISK_MAX_FILE_SIZE     (((uint64_t)1<<41)-1)
+#define TESTDISK_MAX_BLOCKSIZE     (32*1024*1024)
+#define TESTDISK_INVALID_OFFSET          0xffffffffffffffff
 
 /* Access mode flags */
 #define TESTDISK_O_RDONLY          0x00000001
@@ -49,7 +49,7 @@ extern "C" {
  * ============================================================================ */
 
 /**
- * @brief PhotoRec recovery status phases
+ * @brief TestDisk recovery status phases
  */
 typedef enum
 {
@@ -62,7 +62,7 @@ typedef enum
     STATUS_EXT2_ON_SAVE_EVERYTHING, /**< Save everything mode with optimization */
     STATUS_EXT2_OFF_SAVE_EVERYTHING, /**< Save everything mode without optimization */
     STATUS_QUIT /**< Recovery completed */
-} photorec_status_t;
+} testdisk_status_t;
 
 /**
  * @brief Process status codes
@@ -340,9 +340,9 @@ struct arch_fnct_struct
  * ============================================================================ */
 
 /**
- * @brief PhotoRec recovery options configuration
+ * @brief TestDisk recovery options configuration
  */
-struct ph_options
+struct testdisk_options
 {
     int paranoid; /**< Paranoid mode level (0-2) */
     int keep_corrupted_file; /**< Keep partially recovered files */
@@ -354,9 +354,9 @@ struct ph_options
 };
 
 /**
- * @brief PhotoRec recovery parameters and state
+ * @brief TestDisk recovery parameters and state
  */
-struct ph_param
+struct testdisk_param
 {
     char* cmd_device; /**< Target device path */
     char* cmd_run; /**< Command line to execute */
@@ -365,7 +365,7 @@ struct ph_param
     unsigned int carve_free_space_only; /**< Only scan unallocated space */
     unsigned int blocksize; /**< Block size for recovery */
     unsigned int pass; /**< Current recovery pass */
-    photorec_status_t status; /**< Current recovery phase */
+    testdisk_status_t status; /**< Current recovery phase */
     time_t real_start_time; /**< Recovery start timestamp */
     char* recup_dir; /**< Recovery output directory */
     unsigned int dir_num; /**< Current output directory number */
@@ -419,17 +419,17 @@ typedef struct alloc_data_struct
 } alloc_data_t;
 
 /**
- * @brief PhotoRec CLI context - main API structure
+ * @brief TestDisk CLI context - main API structure
  *
- * This structure encapsulates all PhotoRec state and configuration,
+ * This structure encapsulates all TestDisk state and configuration,
  * providing a context-based API for file recovery operations.
  */
-typedef struct ph_cli_context ph_cli_context_t;
+typedef struct testdisk_cli_context testdisk_cli_context_t;
 
-struct ph_cli_context
+struct testdisk_cli_context
 {
-    struct ph_options options; /**< Recovery options configuration */
-    struct ph_param params; /**< Recovery parameters and state */
+    struct testdisk_options options; /**< Recovery options configuration */
+    struct testdisk_param params; /**< Recovery parameters and state */
     int mode; /**< Disk access mode flags */
     const arch_fnct_t** list_arch; /**< Available partition architectures */
     list_disk_t* list_disk; /**< List of available disks */
@@ -444,44 +444,44 @@ struct ph_cli_context
  * ============================================================================ */
 
 /**
- * @brief Initialize PhotoRec context
+ * @brief Initialize TestDisk context
  * @param argc Command line argument count
  * @param argv Command line arguments
  * @param log_mode Log mode. 0: no log, 1: info, 2: debug
  * @param log_file Log file
- * @return Initialized PhotoRec context, or NULL on failure
+ * @return Initialized TestDisk context, or NULL on failure
  *
- * This function initializes a new PhotoRec context with default settings,
+ * This function initializes a new TestDisk context with default settings,
  * discovers available disks, and prepares the system for file recovery.
  */
-ph_cli_context_t* init_photorec(int argc, char* argv[], int log_mode,
+testdisk_cli_context_t* init_testdisk(int argc, char* argv[], int log_mode,
                                 const char* log_file);
 
 /**
- * @brief Run PhotoRec file recovery
- * @param ctx PhotoRec context
+ * @brief Run TestDisk file recovery
+ * @param ctx TestDisk context
  * @return 0 on success, non-zero on error
  *
- * Executes the main PhotoRec recovery process using the current
+ * Executes the main TestDisk recovery process using the current
  * context configuration. This function will run until completion
  * or user interruption.
  */
-int run_photorec(ph_cli_context_t* ctx);
+int run_testdisk(testdisk_cli_context_t* ctx);
 
 /**
- * @brief Clean up PhotoRec context
- * @param ctx PhotoRec context to clean up
+ * @brief Clean up TestDisk context
+ * @param ctx TestDisk context to clean up
  *
- * Frees all resources associated with the PhotoRec context including
+ * Frees all resources associated with the TestDisk context including
  * disk lists, partition lists, and allocated memory.
  */
-void finish_photorec(ph_cli_context_t* ctx);
+void finish_testdisk(testdisk_cli_context_t* ctx);
 
 /**
- * @brief Abort PhotoRec file recovery
- * @param ctx PhotoRec context
+ * @brief Abort TestDisk file recovery
+ * @param ctx TestDisk context
  */
-void abort_photorec(ph_cli_context_t* ctx);
+void abort_testdisk(testdisk_cli_context_t* ctx);
 
 /* ============================================================================
  * CONFIGURATION FUNCTIONS - Disk and Partition Selection
@@ -489,29 +489,29 @@ void abort_photorec(ph_cli_context_t* ctx);
 
 /**
  * @brief Change the target disk for recovery
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param device Device path (e.g., "/dev/sda" or image file path)
  * @return Selected disk structure, or NULL if not found
  *
  * Selects the specified disk and initializes the partition list.
  * The device can be a physical disk or an image file.
  */
-disk_t* change_disk(ph_cli_context_t* ctx, const char* device);
+disk_t* change_disk(testdisk_cli_context_t* ctx, const char* device);
 
 /**
  * @brief Change the partition table architecture
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param part_name_option Partition name option (can be NULL for auto-detect)
  * @return Selected architecture structure
  *
  * Manually sets or auto-detects the partition table architecture
  * (GPT, MBR, Mac, Sun, etc.) and updates the disk unit accordingly.
  */
-const arch_fnct_t* change_arch(const ph_cli_context_t* ctx, char* part_name_option);
+const arch_fnct_t* change_arch(const testdisk_cli_context_t* ctx, char* part_name_option);
 
 /**
  * @brief Change the target partition for recovery
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param order Partition order number
  * @param mode_ext2 Enable EXT2/3/4 optimizations (0=no, 1=yes)
  * @param carve_free_space_only Only scan unallocated space (0=no, 1=yes)
@@ -519,7 +519,7 @@ const arch_fnct_t* change_arch(const ph_cli_context_t* ctx, char* part_name_opti
  *
  * Selects a specific partition by its order number for recovery.
  */
-partition_t* change_part(ph_cli_context_t* ctx, int order, int mode_ext2,
+partition_t* change_part(testdisk_cli_context_t* ctx, int order, int mode_ext2,
                          int carve_free_space_only);
 
 /* ============================================================================
@@ -528,29 +528,29 @@ partition_t* change_part(ph_cli_context_t* ctx, int order, int mode_ext2,
 
 /**
  * @brief Add an image file to the context
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param image_file Image file path
  * @return Added disk structure, or NULL if not found
  * 
- * Adds an image file to the context, allowing PhotoRec to recover
+ * Adds an image file to the context, allowing TestDisk to recover
  * files from the image file instead of a physical disk.
  */
-disk_t* add_image(ph_cli_context_t* ctx, const char* image_file);
+disk_t* add_image(testdisk_cli_context_t* ctx, const char* image_file);
 
 /**
  * @brief Change recovery directory
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param recup_dir Recovery directory
  * 
- * Sets the directory where PhotoRec will save recovered files.
+ * Sets the directory where TestDisk will save recovered files.
  * This function is used to configure the output directory for
  * the recovery process.
  */
-void change_recup_dir(ph_cli_context_t* ctx, const char* recup_dir);
+void change_recup_dir(testdisk_cli_context_t* ctx, const char* recup_dir);
 
 /**
  * @brief Change recovery options
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param paranoid Paranoid mode level (0-2)
  * @param keep_corrupted_file Keep corrupted files (0=no, 1=yes)
  * @param mode_ext2 Enable EXT2/3/4 optimizations (0=no, 1=yes)
@@ -558,33 +558,33 @@ void change_recup_dir(ph_cli_context_t* ctx, const char* recup_dir);
  * @param lowmem Use low memory mode (0=no, 1=yes)
  * @param verbose Verbose output (0=no, 1=yes)
  * 
- * Configures various recovery options that affect how PhotoRec
+ * Configures various recovery options that affect how TestDisk
  * performs file recovery and validation.
  */
-void change_options(ph_cli_context_t* ctx, int paranoid,
+void change_options(testdisk_cli_context_t* ctx, int paranoid,
                     int keep_corrupted_file, int mode_ext2, int expert,
                     int lowmem, int verbose);
 
 /**
  * @brief Change recovery status/phase
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param status Recovery status to set
  * 
  * Sets the initial recovery phase. Useful for resuming recovery
  * from a specific phase or skipping certain phases.
  */
-void change_status(ph_cli_context_t* ctx, photorec_status_t status);
+void change_status(testdisk_cli_context_t* ctx, testdisk_status_t status);
 
 /**
  * @brief Change block size for recovery
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param blocksize Block size in bytes (0 for auto-detect)
  * @return 0 on success, non-zero on error
  * 
  * Sets the block size used for recovery operations. Setting to 0
  * enables automatic block size detection.
  */
-int change_blocksize(ph_cli_context_t* ctx, unsigned int blocksize);
+int change_blocksize(testdisk_cli_context_t* ctx, unsigned int blocksize);
 
 /* ============================================================================
  * CONFIGURATION FUNCTIONS - File Type Selection
@@ -592,17 +592,17 @@ int change_blocksize(ph_cli_context_t* ctx, unsigned int blocksize);
 
 /**
  * @brief Enable or disable all file types
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param all_enable_status 1 to enable all, 0 to disable all
  * @return 0 on success, non-zero on error
  * 
  * Bulk enable or disable all supported file types for recovery.
  */
-int change_all_fileopt(const ph_cli_context_t* ctx, const int all_enable_status);
+int change_all_fileopt(const testdisk_cli_context_t* ctx, const int all_enable_status);
 
 /**
  * @brief Configure specific file types for recovery
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param exts_to_enable Array of file extensions to enable
  * @param exts_to_enable_count Number of extensions to enable
  * @param exts_to_disable Array of file extensions to disable
@@ -612,7 +612,7 @@ int change_all_fileopt(const ph_cli_context_t* ctx, const int all_enable_status)
  * Selectively enable or disable specific file types by extension.
  * This allows fine-grained control over which file types to recover.
  */
-int change_fileopt(const ph_cli_context_t* ctx,
+int change_fileopt(const testdisk_cli_context_t* ctx,
                    char** exts_to_enable, int exts_to_enable_count,
                    char** exts_to_disable, int exts_to_disable_count);
 
@@ -622,7 +622,7 @@ int change_fileopt(const ph_cli_context_t* ctx,
 
 /**
  * @brief Change disk geometry settings
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param cylinders Number of cylinders
  * @param heads_per_cylinder Number of heads per cylinder
  * @param sectors_per_head Number of sectors per head
@@ -631,40 +631,181 @@ int change_fileopt(const ph_cli_context_t* ctx,
  * Manually sets disk geometry parameters. This is typically only
  * needed for very old disks or specialized image files.
  */
-void change_geometry(ph_cli_context_t* ctx, unsigned int cylinders,
+void change_geometry(testdisk_cli_context_t* ctx, unsigned int cylinders,
                      unsigned int heads_per_cylinder,
                      unsigned int sectors_per_head,
                      unsigned int sector_size);
 
 /**
  * @brief Configure EXT2/3/4 group mode
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param group_number EXT2/3/4 group number
  * 
  * Sets specific EXT2/3/4 group for optimized recovery.
  */
-void change_ext2_mode(ph_cli_context_t* ctx, int group_number);
+void change_ext2_mode(testdisk_cli_context_t* ctx, int group_number);
 
 /**
  * @brief Configure EXT2/3/4 inode mode
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param inode_number EXT2/3/4 inode number
  * 
  * Sets specific EXT2/3/4 inode for optimized recovery.
  */
-void change_ext2_inode(ph_cli_context_t* ctx, int inode_number);
+void change_ext2_inode(testdisk_cli_context_t* ctx, int inode_number);
 
 /**
  * @brief General configuration interface
- * @param ctx PhotoRec context
+ * @param ctx TestDisk context
  * @param cmd Configuration command string
  * @return 0 on success, non-zero on error
  * 
  * Provides a generic interface for sending configuration commands
- * to PhotoRec. This allows access to advanced features not covered
+ * to TestDisk. This allows access to advanced features not covered
  * by the specific configuration functions.
  */
-int config_photorec(ph_cli_context_t* ctx, char* cmd);
+int config_testdisk(testdisk_cli_context_t* ctx, char* cmd);
+
+// TODO: Advanced Options
+
+/* ============================================================================
+ * PARTITION STRUCTURE OPERATIONS - Navigation and Management
+ * ============================================================================ */
+
+/**
+ * @brief Get partition structure validity status
+ * @param ctx TestDisk context
+ * @return 0 if structure is valid, non-zero if invalid
+ * 
+ * Tests the current partition structure and returns its validity status.
+ * This is useful for determining if the partition table is consistent.
+ */
+int test_partition_structure(testdisk_cli_context_t* ctx);
+
+/**
+ * @brief Change partition status to next state
+ * @param ctx TestDisk context
+ * @param order Partition order number
+ * @return 0 on success, -1 on error
+ * 
+ * Changes the status of the specified partition to the next
+ * available state (e.g., from deleted to primary, etc.).
+ */
+int change_partition_status_next(testdisk_cli_context_t* ctx, int order);
+
+/**
+ * @brief Change partition status to previous state
+ * @param ctx TestDisk context
+ * @param order Partition order number
+ * @return 0 on success, -1 on error
+ * 
+ * Changes the status of the specified partition to the previous
+ * available state (e.g., from primary to deleted, etc.).
+ */
+int change_partition_status_prev(testdisk_cli_context_t* ctx, int order);
+
+/**
+ * @brief Change partition type
+ * @param ctx TestDisk context
+ * @param order Partition order number
+ * @param part_type New partition type value
+ * @return 0 on success, -1 on error
+ * 
+ * Changes the type of the specified partition.
+ * The exact meaning of part_type depends on the partition table architecture.
+ */
+int change_partition_type(testdisk_cli_context_t* ctx, int order, unsigned int part_type);
+
+/**
+ * @brief List files in partition
+ * @param ctx TestDisk context
+ * @param order Partition order number
+ * @return 0 on success, -1 on error
+ * 
+ * Lists the files and directories in the specified partition.
+ * This operation is only available for supported filesystem types.
+ */
+int list_partition_files(testdisk_cli_context_t* ctx, int order);
+
+/**
+ * @brief Save partition table backup
+ * @param ctx TestDisk context
+ * @return 0 on success, -1 on error
+ * 
+ * Creates a backup of the current partition table structure.
+ * The backup is saved to a file for later restoration.
+ */
+int save_partition_backup(testdisk_cli_context_t* ctx);
+
+/**
+ * @brief Load partition table from backup
+ * @param ctx TestDisk context
+ * @return 0 on success, -1 on error
+ * 
+ * Loads a partition table structure from a previously created backup.
+ * This will replace the current partition list.
+ */
+int load_partition_backup(testdisk_cli_context_t* ctx);
+
+/**
+ * @brief Write MBR code
+ * @param ctx TestDisk context
+ * @param device Device path
+ * 
+ * Writes the MBR code to the disk.
+ */
+void write_MBR_code(testdisk_cli_context_t* ctx);
+
+/* ============================================================================
+ * PARTITION RECOVERY OPERATIONS - Search and Recovery
+ * ============================================================================ */
+
+/**
+ * @brief Search for partitions on disk
+ * @param ctx TestDisk context
+ * @param fast_mode Fast mode level (0=comprehensive, 1=fast, 2=very fast)
+ * @param dump_ind Dump index for detailed output
+ * @return 0 on success, -1 on error
+ * 
+ * Performs comprehensive partition search on the disk using various
+ * detection methods including signatures, backup sectors, and filesystem
+ * analysis. Also aligns partition structure and initializes it based on
+ * the disk architecture.
+ */
+int search_partitions(testdisk_cli_context_t* ctx, int fast_mode, int dump_ind);
+
+/**
+ * @brief Validate disk geometry settings
+ * @param ctx TestDisk context
+ * @return 0 if geometry is valid, non-zero if issues detected
+ * 
+ * Checks if the current disk geometry settings are correct by comparing
+ * them with geometry inferred from partition analysis. Issues warnings
+ * for i386 and Sun architectures where correct geometry is crucial.
+ */
+int validate_disk_geometry(testdisk_cli_context_t* ctx);
+
+/**
+ * @brief Write partition table to disk
+ * @param ctx TestDisk context
+ * @param simulate If non-zero, only simulate the write operation
+ * @param no_confirm If non-zero, skip confirmation prompts
+ * @return 0 on success, -1 on error
+ * 
+ * Writes the current partition table to disk. Can be used in simulation
+ * mode to test the operation without actually writing to disk.
+ */
+int write_partition_table(testdisk_cli_context_t* ctx, int simulate, int no_confirm);
+
+/**
+ * @brief Delete partition table
+ * @param ctx TestDisk context
+ * @param device Device path
+ * 
+ * Deletes the partition table from the disk.
+ * This is a destructive operation and should be used with caution.
+ */
+void delete_partition_table(testdisk_cli_context_t* ctx);
 
 /* ============================================================================
  * UTILITY FUNCTIONS AND GLOBALS
@@ -700,7 +841,17 @@ int file_options_save(file_enable_t* files_enable);
  * @param status Recovery status code
  * @return Status name string
  */
-const char* status_to_name(photorec_status_t status);
+const char* status_to_name(testdisk_status_t status);
+
+/**
+ * @brief Ensure only one bootable partition is present
+ * @param ctx TestDisk context
+ * 
+ * Ensures that only one partition is marked as bootable in the
+ * current partition list. This is a common requirement for
+ * multi-boot systems.
+ */
+void ensure_single_bootable_partition(testdisk_cli_context_t* ctx);
 
 /* ============================================================================
  * LOWER-LEVEL UTILITY FUNCTIONS (used internally)
@@ -759,7 +910,7 @@ void delete_list_disk(list_disk_t* list_disk);
  * @param options Recovery options (can be NULL)
  * @return Linked list of partitions
  */
-list_part_t* init_list_part(disk_t* disk, const struct ph_options* options);
+list_part_t* init_list_part(disk_t* disk, const struct testdisk_options* options);
 
 /**
  * @brief Free partition list
@@ -784,4 +935,4 @@ void autodetect_arch(disk_t* disk, const arch_fnct_t* arch);
 }
 #endif
 
-#endif /* _PHOTOREC_API_H */
+#endif /* _TESTDISK_API_H */

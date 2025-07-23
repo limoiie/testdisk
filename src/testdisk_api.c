@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
@@ -78,6 +79,31 @@
 #include "phcli.h"
 #include "poptions.h"
 #include "psearchn.h"
+#include "godmode.h"
+#include "savehdr.h"
+#include "tload.h"
+#include "addpart.h"
+#include "chgtype.h"
+#include "dirpart.h"
+#include "io_redir.h"
+#include "tpartwr.h"
+#include "analyse.h"
+#include "fat32.h"
+#include "tntfs.h"
+#include "tdelete.h"
+#include "thfs.h"
+
+/* Constants for read/write operations */
+#define RO 1
+#define RW 0
+
+/* Forward declarations for functions from godmode.c */
+extern list_part_t* search_part(disk_t* disk_car, const list_part_t* list_part_org, 
+                               const int verbose, const int dump_ind, const int fast_mode, 
+                               char** current_cmd);
+extern void align_structure(list_part_t* list_part, const disk_t* disk, const unsigned int align);
+extern unsigned int get_geometry_from_list_part(const disk_t* disk, const list_part_t* list_part, 
+                                               const int verbose);
 
 #ifdef HAVE_NCURSES
 #error "HAVE_NCURSES is defined, you must disable it for api mode"
@@ -381,14 +407,14 @@ void change_ext2_inode(ph_cli_context_t* ctx, const int inode_number)
     free(x);
 }
 
-int config_photorec(ph_cli_context_t* ctx, char* cmd)
+int config_testdisk(ph_cli_context_t* ctx, char* cmd)
 {
     ctx->params.cmd_run = cmd;
     return menu_photorec_cli(ctx->list_part, &ctx->params, &ctx->options,
                              &ctx->list_search_space);
 }
 
-ph_cli_context_t* init_photorec(int argc, char* argv[], const int log_mode, const char* log_file)
+ph_cli_context_t* init_testdisk(int argc, char* argv[], const int log_mode, const char* log_file)
 {
 #if defined(ENABLE_DFXML)
     xml_set_command_line(argc, argv);
@@ -441,7 +467,7 @@ ph_cli_context_t* init_photorec(int argc, char* argv[], const int log_mode, cons
     return ctx;
 }
 
-void finish_photorec(ph_cli_context_t* ctx)
+void finish_testdisk(ph_cli_context_t* ctx)
 {
     part_free_list(ctx->list_part);
 #ifndef DISABLED_FOR_FRAMAC
@@ -455,7 +481,7 @@ void finish_photorec(ph_cli_context_t* ctx)
     free(ctx);
 }
 
-int run_photorec(ph_cli_context_t* ctx)
+int run_testdisk(ph_cli_context_t* ctx)
 {
     need_to_stop = 0;
     struct ph_param* params = &ctx->params;
@@ -635,9 +661,6 @@ int run_photorec(ph_cli_context_t* ctx)
         log_critical("Cannot write file, no space left.\n");
         break;
     }
-
-    free(params->file_stats);
-    params->file_stats = NULL;
     free_header_check();
 #ifdef ENABLE_DFXML
   xml_shutdown();
@@ -646,7 +669,290 @@ int run_photorec(ph_cli_context_t* ctx)
     return 0;
 }
 
-void abort_photorec(ph_cli_context_t* ctx)
+/* ============================================================================
+ * PARTITION STRUCTURE OPERATIONS - Implementation
+ * ============================================================================ */
+
+int test_partition_structure(ph_cli_context_t* ctx)
+{
+    if (ctx->params.disk == NULL || ctx->params.disk->arch == NULL)
+    {
+        return -1;
+    }
+    return ctx->params.disk->arch->test_structure(ctx->list_part);
+}
+
+int change_partition_status_next(ph_cli_context_t* ctx, int order)
+{
+    partition_t* selected = NULL;
+    
+    // Find partition by order
+    for (list_part_t* element = ctx->list_part; element != NULL; element = element->next)
+    {
+        if (element->part->order == order)
+        {
+            selected = element->part;
+            break;
+        }
+    }
+    
+    if (selected == NULL || ctx->params.disk == NULL || ctx->params.disk->arch == NULL)
+    {
+        return -1;
+    }
+    
+    if (selected->arch == NULL || selected->arch == ctx->params.disk->arch)
+    {
+        ctx->params.disk->arch->set_next_status(ctx->params.disk, selected);
+        return 0;
+    }
+    return -1;
+}
+
+int change_partition_status_prev(ph_cli_context_t* ctx, int order)
+{
+    partition_t* selected = NULL;
+    
+    // Find partition by order
+    for (list_part_t* element = ctx->list_part; element != NULL; element = element->next)
+    {
+        if (element->part->order == order)
+        {
+            selected = element->part;
+            break;
+        }
+    }
+    
+    if (selected == NULL || ctx->params.disk == NULL || ctx->params.disk->arch == NULL)
+    {
+        return -1;
+    }
+    
+    if (selected->arch == NULL || selected->arch == ctx->params.disk->arch)
+    {
+        ctx->params.disk->arch->set_prev_status(ctx->params.disk, selected);
+        return 0;
+    }
+    return -1;
+}
+
+int change_partition_type(ph_cli_context_t* ctx, int order, unsigned int part_type)
+{
+    partition_t* selected = NULL;
+    
+    // Find partition by order
+    for (list_part_t* element = ctx->list_part; element != NULL; element = element->next)
+    {
+        if (element->part->order == order)
+        {
+            selected = element->part;
+            break;
+        }
+    }
+    
+    if (selected == NULL || ctx->params.disk == NULL || ctx->params.disk->arch == NULL)
+    {
+        return -1;
+    }
+    
+    if (selected->arch == NULL || selected->arch == ctx->params.disk->arch)
+    {
+        if (ctx->params.disk->arch->set_part_type != NULL)
+        {
+            return ctx->params.disk->arch->set_part_type(selected, part_type);
+        }
+    }
+    return -1;
+}
+
+int list_partition_files(ph_cli_context_t* ctx, int order)
+{
+    partition_t* selected = NULL;
+    
+    // Find partition by order
+    for (list_part_t* element = ctx->list_part; element != NULL; element = element->next)
+    {
+        if (element->part->order == order)
+        {
+            selected = element->part;
+            break;
+        }
+    }
+    
+    if (selected == NULL)
+    {
+        return -1;
+    }
+    
+    char* current_cmd = NULL;
+    if (selected->sb_offset == 0 || selected->sb_size == 0)
+    {
+        dir_partition(ctx->params.disk, selected, ctx->options.verbose, 0, &current_cmd);
+    }
+    else
+    {
+        io_redir_add_redir(ctx->params.disk,
+            selected->part_offset + selected->sborg_offset,
+            selected->sb_size,
+            selected->part_offset + selected->sb_offset,
+            NULL);
+        dir_partition(ctx->params.disk, selected, ctx->options.verbose, 0, &current_cmd);
+        io_redir_del_redir(ctx->params.disk, selected->part_offset + selected->sborg_offset);
+    }
+    return 0;
+}
+
+int save_partition_backup(ph_cli_context_t* ctx)
+{
+    if (ctx->params.disk == NULL)
+    {
+        return -1;
+    }
+    return partition_save(ctx->params.disk, ctx->list_part, ctx->options.verbose);
+}
+
+int load_partition_backup(ph_cli_context_t* ctx)
+{
+    if (ctx->params.disk == NULL)
+    {
+        return -1;
+    }
+    
+#ifdef HAVE_NCURSES
+    ctx->list_part = interface_load(ctx->params.disk, ctx->list_part, ctx->options.verbose);
+    if (ctx->list_part != NULL)
+    {
+        return 0;
+    }
+#else
+    /* In non-ncurses mode, backup loading is not supported */
+    log_info("Backup loading not available in non-interactive mode\n");
+#endif
+    return -1;
+}
+
+void ensure_single_bootable_partition(ph_cli_context_t* ctx)
+{
+    if (ctx->list_part == NULL)
+    {
+        return;
+    }
+    
+    // Find bootable partition
+    list_part_t* bootable_part = NULL;
+    for (list_part_t* element = ctx->list_part; element != NULL; element = element->next)
+    {
+        if (element->part->status == STATUS_PRIM_BOOT)
+        {
+            bootable_part = element;
+            break;
+        }
+    }
+    
+    // If bootable partition found, ensure only one is bootable
+    if (bootable_part != NULL)
+    {
+        only_one_bootable(ctx->list_part, bootable_part);
+    }
+}
+
+/* ============================================================================
+ * PARTITION RECOVERY OPERATIONS - Implementation
+ * ============================================================================ */
+
+int search_partitions(ph_cli_context_t* ctx, int fast_mode, int dump_ind)
+{
+    if (ctx->params.disk == NULL)
+    {
+        return -1;
+    }
+    
+    // Store original partition list for hints
+    const list_part_t* list_part_org = ctx->list_part;
+    
+    // Perform partition search
+    ctx->list_part = search_part(ctx->params.disk, list_part_org, 
+                                ctx->options.verbose, dump_ind, fast_mode, NULL);
+    
+    if (ctx->list_part != NULL)
+    {
+        // Align partition structure
+        align_structure(ctx->list_part, ctx->params.disk, 1);
+        
+        // Initialize partition structure based on architecture
+        ctx->params.disk->arch->init_structure(ctx->params.disk, ctx->list_part, ctx->options.verbose);
+        
+        return 0;
+    }
+    return -1;
+}
+
+int validate_disk_geometry(ph_cli_context_t* ctx)
+{
+    if (ctx->params.disk == NULL || ctx->list_part == NULL)
+    {
+        return -1;
+    }
+    
+    // Check if we need to validate geometry for this architecture
+    if (ctx->params.disk->arch == &arch_i386 || ctx->params.disk->arch == &arch_sun)
+    {
+        const unsigned int heads_per_cylinder = get_geometry_from_list_part(ctx->params.disk, 
+                                                                           ctx->list_part, 
+                                                                           ctx->options.verbose);
+        if (ctx->params.disk->geom.heads_per_cylinder != heads_per_cylinder)
+        {
+            log_warning("Warning: the current number of heads per cylinder is %u but the correct value may be %u.\n",
+                       ctx->params.disk->geom.heads_per_cylinder, heads_per_cylinder);
+            return 1; // Geometry issue detected
+        }
+    }
+    return 0; // Geometry is valid
+}
+
+int write_partition_table(ph_cli_context_t* ctx, int simulate, int no_confirm)
+{
+    if (ctx->params.disk == NULL || ctx->list_part == NULL)
+    {
+        return -1;
+    }
+    
+    if (ctx->params.disk->arch->write_part == NULL)
+    {
+        return -1;
+    }
+    
+    if (simulate)
+    {
+        log_info("Simulating partition table write\n");
+        return ctx->params.disk->arch->write_part(ctx->params.disk, ctx->list_part, RO, ctx->options.verbose);
+    }
+    else
+    {
+        log_info("Writing partition table to disk\n");
+        return ctx->params.disk->arch->write_part(ctx->params.disk, ctx->list_part, RW, ctx->options.verbose);
+    }
+}
+
+void delete_partition_table(ph_cli_context_t* ctx)
+{
+    if (ctx->params.disk == NULL)
+    {
+        return;
+    }
+    
+    // Use the existing write_clean_table function
+    write_clean_table(ctx->params.disk);
+    
+    // Clear the partition list after successful deletion
+    if (ctx->list_part != NULL)
+    {
+        part_free_list(ctx->list_part);
+        ctx->list_part = NULL;
+    }
+}
+
+void abort_testdisk(ph_cli_context_t* ctx)
 {
     need_to_stop = 1;
 }

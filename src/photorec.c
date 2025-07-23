@@ -963,6 +963,11 @@ static void params_reset_aux(struct ph_param *params)
 
 void params_reset(struct ph_param *params, const struct ph_options *options)
 {
+  if (params->file_stats != NULL)
+  {
+    free(params->file_stats);
+    params->file_stats = NULL;
+  }
   /*@ assert valid_ph_param(params); */
   params->file_stats=init_file_stats(options->list_file_format);
   /*@ assert valid_ph_param(params); */

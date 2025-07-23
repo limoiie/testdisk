@@ -200,17 +200,18 @@ static void align_structure_i386(list_part_t *list_part, const disk_t *disk, con
 }
 
 /**
- * @brief Aligns partition structure based on disk architecture
+ * @brief Aligns partition structures to disk geometry boundaries
  * 
- * Performs partition alignment based on the disk architecture. For i386
- * architecture, it calls the specific i386 alignment function. For other
- * architectures, it uses the location boundary determined by get_location_boundary().
+ * This function aligns partition structures to appropriate disk geometry boundaries
+ * based on the disk architecture. For i386 architecture, it calls the specific
+ * i386 alignment function. For other architectures, it aligns partitions to
+ * location boundaries calculated from disk geometry.
  * 
  * @param list_part Pointer to the linked list of partitions to align
  * @param disk Pointer to the disk structure containing geometry information
  * @param align Alignment flag (0 for no alignment, non-zero for alignment)
  */
-static void align_structure(list_part_t *list_part, const disk_t *disk, const unsigned int align)
+void align_structure(list_part_t *list_part, const disk_t *disk, const unsigned int align)
 {
   if(disk->arch==&arch_i386)
   {
@@ -750,7 +751,7 @@ typedef enum { INDSTOP_CONTINUE=0, INDSTOP_STOP=1, INDSTOP_SKIP=2, INDSTOP_QUIT=
  * @note The function can be interrupted by user input during interactive mode
  * @note Discovered partitions are marked as STATUS_DELETED initially
  */
-static list_part_t *search_part(disk_t *disk_car, const list_part_t *list_part_org, const int verbose, const int dump_ind, const int fast_mode, char **current_cmd)
+list_part_t *search_part(disk_t *disk_car, const list_part_t *list_part_org, const int verbose, const int dump_ind, const int fast_mode, char **current_cmd)
 {
   unsigned char *buffer_disk;
   unsigned char *buffer_disk0;
